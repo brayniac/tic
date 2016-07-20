@@ -1,0 +1,12 @@
+[package]
+name = "benches"
+version = "0.1.0"
+authors = ["Brian Martin <brayniac@gmail.com>"]
+
+[dependencies]
+aquavitae = { path = "../"}
+time = "*"
+log = "*"
+getopts = "*"
+canal = "*"
+mpmc = "*"

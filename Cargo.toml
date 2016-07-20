@@ -1,0 +1,28 @@
+[package]
+name = "tic"
+version = "0.0.1"
+authors = ["Brian Martin <brayniac@gmail.com>"]
+
+license = "MIT OR Apache-2.0"
+
+description = "[WIP] stats library"
+
+homepage = "https://github.com/brayniac/tic"
+documentation = "https://brayniac.github.io/tic"
+repository = "https://github.com/brayniac/tic"
+
+readme = "README.md"
+
+keywords = [ "stats", "metrics", "telemetry", "interval" ]
+
+exclude = ["benches", "target", "tests", "src/*.bk"]
+
+[dependencies]
+log = "0.3.6"
+heatmap = "0.3.0"
+histogram = "0.6.1"
+waterfall = "0.3.0"
+shuteye = "0.1.1"
+time = "0.1.35"
+tiny_http = "0.5.2"
+mpmc = "0.1.2"
