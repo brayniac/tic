@@ -7,7 +7,8 @@ Features will include:
 
 [![Build Status](https://travis-ci.org/brayniac/tic.svg?branch=master)](https://travis-ci.org/brayniac/tic)
 [![crates.io](http://meritbadge.herokuapp.com/tic)](https://crates.io/crates/tic)
-[![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
+[![License](http://img.shields.io/:license-mit-blue.svg)](http://opensource.org/licenses/MIT)
+[![License](http://img.shields.io/badge/license-APACHE2-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
 ## Usage
 
@@ -25,7 +26,7 @@ extern crate tic;
 ```
 
 The API documentation of this library can be found at
-[brayniac.github.io/aquavitae](https://brayniac.github.io/aquavitae/).
+[brayniac.github.io/tic](https://brayniac.github.io/tic/)
 
 ## Features
 
