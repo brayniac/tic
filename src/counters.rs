@@ -1,22 +1,19 @@
 // a counter holds counts of events
 
 use std::collections::HashMap;
-
 use std::hash::Hash;
-
-use time::precise_time_ns;
-const ONE_SECOND: u64 = 1_000_000_000;
+use std::time::Instant;
 
 pub struct Counters<T> {
     pub counts: HashMap<T, u64>,
-    pub t0: u64,
+    pub t0: Instant,
 }
 
 impl<T: Hash + Eq> Default for Counters<T> {
     fn default() -> Counters<T> {
         Counters {
             counts: HashMap::new(),
-            t0: precise_time_ns(),
+            t0: Instant::now(),
         }
     }
 }
@@ -62,6 +59,6 @@ impl<T: Hash + Eq> Counters<T> {
     }
 
     pub fn rate(&self, key: T) -> f64 {
-        self.get(key) as f64 / ((precise_time_ns() - self.t0) / ONE_SECOND) as f64
+        self.get(key) as f64 / self.t0.elapsed().as_secs() as f64
     }
 }

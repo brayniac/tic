@@ -6,7 +6,6 @@ extern crate heatmap;
 extern crate histogram;
 extern crate waterfall;
 extern crate shuteye;
-extern crate time;
 extern crate tiny_http;
 
 mod counters;
@@ -15,6 +14,7 @@ mod gauges;
 use std::fmt;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
+use std::time::Instant;
 
 use heatmap::Heatmap;
 use histogram::Histogram;
@@ -355,7 +355,7 @@ impl Receiver {
             .build()
             .unwrap();
 
-        let mut t0 = time::precise_time_ns();
+        let mut t0 = Instant::now();
         let mut window_counters = Counters::new();
         let mut global_counters = Counters::new();
         let mut gauges = Gauges::new();
@@ -377,9 +377,9 @@ impl Receiver {
 
             try_handle_http(&server, &http_histogram, &gauges, &global_counters);
 
-            let t1 = time::precise_time_ns();
+            let t1 = Instant::now();
 
-            if t1 - t0 >= (duration as u64 * ONE_SECOND) {
+            if (t1 - t0).as_secs() >= (duration as u64 * ONE_SECOND) {
                 let rate = window_counters.rate(Counter::Total);
                 info!("-----");
                 info!("Window: {}", window);
