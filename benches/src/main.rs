@@ -112,7 +112,7 @@ fn main() {
     set_log_level(0);
     info!("tic benchmark");
 
-    let receiver = StatsReceiver::configure().windows(6).duration(10).build();
+    let receiver = StatsReceiver::configure().windows(60).duration(1).build();
 
     let sender = receiver.get_sender();
 

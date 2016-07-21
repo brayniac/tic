@@ -37,6 +37,7 @@ impl<T: Hash + Eq> Counters<T> {
 
     pub fn clear(&mut self) {
         self.counts = HashMap::new();
+        self.t0 = Instant::now();
     }
 
     pub fn get(&self, key: T) -> u64 {
@@ -59,6 +60,6 @@ impl<T: Hash + Eq> Counters<T> {
     }
 
     pub fn rate(&self, key: T) -> f64 {
-        self.get(key) as f64 / self.t0.elapsed().as_secs() as f64
+        self.get(key) as f64 / (self.t0.elapsed().as_secs() as f64 + self.t0.elapsed().subsec_nanos() as f64 / 1_000_000_000.0)
     }
 }
