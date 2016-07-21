@@ -63,3 +63,70 @@ impl<T: Hash + Eq> Counters<T> {
         self.get(key) as f64 / (self.t0.elapsed().as_secs() as f64 + self.t0.elapsed().subsec_nanos() as f64 / 1_000_000_000.0)
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::Counters;
+
+    #[test]
+    fn test_new_0() {
+        let c = Counters::<usize>::new();
+        assert_eq!(c.t0.elapsed().as_secs(), 0);
+        assert_eq!(c.get(0), 0);
+        assert_eq!(c.get(1), 0);
+    }
+
+    #[test]
+    fn test_increment_0() {
+        let mut c = Counters::<usize>::new();
+        assert_eq!(c.get(1), 0);
+        c.increment(1);
+        assert_eq!(c.get(1), 1);
+        assert_eq!(c.get(0), 0);
+    }
+
+    #[test]
+    fn test_add_0() {
+        let mut c = Counters::<usize>::new();
+        assert_eq!(c.get(1), 0);
+        c.add(1, 100);
+        assert_eq!(c.get(1), 100);
+        assert_eq!(c.get(0), 0);
+    }
+
+    #[test]
+    fn test_clear_0() {
+        let mut c = Counters::<usize>::new();
+        let t0 = c.t0;
+        assert_eq!(c.get(1), 0);
+        c.add(1, 100);
+        assert_eq!(c.get(1), 100);
+        c.clear();
+        let t1 = c.t0;
+        assert!(t0 != t1);
+        assert_eq!(c.get(1), 0);
+    }
+
+    #[test]
+    fn test_rate_0() {
+        let mut c = Counters::<usize>::new();
+        let t0 = c.t0;
+        c.add(1, 1000);
+        c.add(2, 2000);
+        loop {
+            if t0.elapsed().as_secs() >= 1 {
+                break;
+            }
+        }
+        let r0 = c.rate(0);
+        let r1 = c.rate(1);
+        let r2 = c.rate(2);
+
+        assert_eq!(r0, 0.0);
+        assert!(r1 > 999.0);
+        assert!(r1 < 1001.0);
+        assert!(r2 > 1999.0);
+        assert!(r2 < 2001.0);
+    }
+}
