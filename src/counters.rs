@@ -124,9 +124,9 @@ mod tests {
         let r2 = c.rate(2);
 
         assert_eq!(r0, 0.0);
-        assert!(r1 > 999.0);
-        assert!(r1 < 1001.0);
-        assert!(r2 > 1999.0);
-        assert!(r2 < 2001.0);
+        assert!(r1 > 995.0);
+        assert!(r1 < 1005.0);
+        assert!(r2 > 1990.0);
+        assert!(r2 < 2010.0);
     }
 }
