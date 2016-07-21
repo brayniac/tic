@@ -3,7 +3,7 @@ extern crate log;
 
 use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 
-extern crate aquavitae;
+extern crate tic;
 extern crate getopts;
 extern crate time;
 
@@ -13,9 +13,9 @@ use std::thread;
 
 use time::precise_time_ns;
 
-use aquavitae::Receiver as StatsReceiver;
-use aquavitae::Sender as StatsSender;
-use aquavitae::{Stat, Status};
+use tic::Receiver as StatsReceiver;
+use tic::Sender as StatsSender;
+use tic::{Stat, Status};
 
 struct Generator {
     stats: StatsSender,
@@ -110,9 +110,9 @@ fn main() {
         return;
     }
     set_log_level(0);
-    info!("aquavitae benchmark");
+    info!("tic benchmark");
 
-    let receiver = StatsReceiver::configure().windows(1).build();
+    let receiver = StatsReceiver::configure().windows(6).duration(10).build();
 
     let sender = receiver.get_sender();
 
