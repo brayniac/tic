@@ -379,7 +379,7 @@ impl Receiver {
 
             let t1 = Instant::now();
 
-            if (t1 - t0).as_secs() >= (duration as u64 * ONE_SECOND) {
+            if (t1 - t0).as_secs() >= duration as u64 {
                 let rate = window_counters.rate(Counter::Total);
                 info!("-----");
                 info!("Window: {}", window);
