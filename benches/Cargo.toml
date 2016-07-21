@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Brian Martin <brayniac@gmail.com>"]
 
 [dependencies]
-aquavitae = { path = "../"}
+tic = { path = "../"}
 time = "*"
 log = "*"
 getopts = "*"
