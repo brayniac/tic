@@ -12,6 +12,8 @@ mod counters;
 mod gauges;
 
 use std::fmt;
+use std::hash::Hash;
+use std::marker::PhantomData;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::time::Instant;
@@ -44,20 +46,15 @@ pub enum Gauge {
     Percentile9999,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Status {
-    Ok,
-}
-
 #[derive(Clone)]
-pub struct Stat {
+pub struct Stat<T> {
     start: u64,
     stop: u64,
-    status: Status,
+    status: T,
 }
 
-impl Stat {
-    pub fn new(start: u64, stop: u64, status: Status) -> Stat {
+impl<T: Hash + Eq + Send> Stat<T> {
+    pub fn new(start: u64, stop: u64, status: T) -> Stat<T> {
         Stat {
             start: start,
             stop: stop,
@@ -66,17 +63,9 @@ impl Stat {
     }
 }
 
-pub struct Receiver {
-    config: Config,
-    queue: Arc<Queue<Stat>>,
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Status::Ok => write!(f, "ok"),
-        }
-    }
+pub struct Receiver<T> {
+    config: Config<T>,
+    queue: Arc<Queue<Stat<T>>>,
 }
 
 impl fmt::Display for Gauge {
@@ -190,47 +179,49 @@ fn handle_http(request: Request,
 }
 
 #[derive(Clone)]
-pub struct Sender {
-    queue: Arc<Queue<Stat>>,
+pub struct Sender<T> {
+    queue: Arc<Queue<Stat<T>>>,
 }
 
 
-impl Sender {
-    pub fn send(&self, stat: Stat) -> Result<(), Stat> {
+impl<T: Hash + Eq + Send> Sender<T> {
+    pub fn send(&self, stat: Stat<T>) -> Result<(), Stat<T>> {
         self.queue.push(stat)
     }
 }
 
 /// a configuration struct for customizing `Receiver`
-pub struct Config {
+pub struct Config<T> {
     duration: usize,
     windows: usize,
     http_listen: Option<String>,
     trace_file: Option<String>,
     waterfall_file: Option<String>,
+    resource_type: PhantomData<T>,
 }
 
-impl Default for Config {
-    fn default() -> Config {
+impl<T: Hash + Eq + Send> Default for Config<T> {
+    fn default() -> Config<T> {
         Config {
             duration: 60,
             windows: 60,
             http_listen: None,
             trace_file: None,
             waterfall_file: None,
+            resource_type: PhantomData::<T>
         }
     }
 }
 
-impl Config {
+impl<T: Hash + Eq + Send> Config<T> {
     /// create a new tic Config with defaults
     ///
     /// # Example
     /// ```
     /// # use tic::Receiver;
-    /// let mut c = Receiver::configure();
+    /// let mut c = Receiver::<usize>::configure();
     /// ```
-    pub fn new() -> Config {
+    pub fn new() -> Config<T> {
         Default::default()
     }
 
@@ -239,7 +230,7 @@ impl Config {
     /// # Example
     /// ```
     /// # use tic::Receiver;
-    /// let mut c = Receiver::configure();
+    /// let mut c = Receiver::<usize>::configure();
     /// c.duration(60); // set to 60 second integration window
     /// ```
     pub fn duration(mut self, duration: usize) -> Self {
@@ -252,7 +243,7 @@ impl Config {
     /// # Example
     /// ```
     /// # use tic::Receiver;
-    /// let mut c = Receiver::configure();
+    /// let mut c = Receiver::<usize>::configure();
     /// c.windows(60); // collect for 60 x duration and terminate
     /// ```
     pub fn windows(mut self, windows: usize) -> Self {
@@ -265,7 +256,7 @@ impl Config {
     /// # Example
     /// ```
     /// # use tic::Receiver;
-    /// let mut c = Receiver::configure();
+    /// let mut c = Receiver::<usize>::configure();
     /// c.http_listen("0.0.0.0:42024".to_owned()); // listen on port 42024 on all interfaces
     /// ```
     pub fn http_listen(mut self, address: String) -> Self {
@@ -278,7 +269,7 @@ impl Config {
     /// # Example
     /// ```
     /// # use tic::Receiver;
-    /// let mut c = Receiver::configure();
+    /// let mut c = Receiver::<usize>::configure();
     /// c.trace_file("/tmp/heatmap.trace".to_owned()); // heatmap trace will write here
     /// ```
     pub fn trace_file(mut self, path: String) -> Self {
@@ -291,7 +282,7 @@ impl Config {
     /// # Example
     /// ```
     /// # use tic::Receiver;
-    /// let mut c = Receiver::configure();
+    /// let mut c = Receiver::<usize>::configure();
     /// c.waterfall_file("/tmp/waterfall.png".to_owned()); // waterfall png will render here
     /// ```
     pub fn waterfall_file(mut self, path: String) -> Self {
@@ -300,35 +291,35 @@ impl Config {
     }
 
     /// Build a new Receiver based on the current configuration
-    pub fn build(self) -> Receiver {
+    pub fn build(self) -> Receiver<T> {
         Receiver::configured(self)
     }
 }
 
-impl Default for Receiver {
+impl<T: Hash + Eq + Send> Default for Receiver<T> {
     fn default() -> Self {
         Config::new().build()
     }
 }
 
-impl Receiver {
-    pub fn new() -> Receiver {
+impl<T: Hash + Eq + Send> Receiver<T> {
+    pub fn new() -> Receiver<T> {
         Default::default()
     }
 
-    pub fn configured(config: Config) -> Receiver {
-        let queue = Arc::new(Queue::<Stat>::with_capacity(8));
+    pub fn configured(config: Config<T>) -> Receiver<T> {
+        let queue = Arc::new(Queue::<Stat<T>>::with_capacity(8));
         Receiver {
             config: config,
             queue: queue,
         }
     }
 
-    pub fn configure() -> Config {
+    pub fn configure() -> Config<T> {
         Config::default()
     }
 
-    pub fn get_sender(&self) -> Sender {
+    pub fn get_sender(&self) -> Sender<T> {
         Sender { queue: self.queue.clone() }
     }
 
@@ -367,12 +358,8 @@ impl Receiver {
         loop {
             if let Some(result) = self.queue.pop() {
                 window_counters.increment(Counter::Total);
-                match result.status {
-                    Status::Ok => {
-                        let _ = histogram.increment(result.stop - result.start);
-                        let _ = heatmap.increment(result.start, result.stop - result.start);
-                    }
-                }
+                let _ = histogram.increment(result.stop - result.start);
+                let _ = heatmap.increment(result.start, result.stop - result.start);
             } //TODO: add a stat here?
 
             try_handle_http(&server, &http_histogram, &gauges, &global_counters);
