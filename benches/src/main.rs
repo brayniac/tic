@@ -7,6 +7,7 @@ extern crate tic;
 extern crate getopts;
 extern crate time;
 
+use std::fmt;
 use getopts::Options;
 use std::env;
 use std::thread;
@@ -15,15 +16,28 @@ use time::precise_time_ns;
 
 use tic::Receiver as StatsReceiver;
 use tic::Sender as StatsSender;
-use tic::{Stat, Status};
+use tic::{Stat};
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum Status {
+    Ok,
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Status::Ok => write!(f, "ok"),
+        }
+    }
+}
 
 struct Generator {
-    stats: StatsSender,
+    stats: StatsSender<Status>,
     last: u64,
 }
 
 impl Generator {
-    fn new(stats: StatsSender) -> Generator {
+    fn new(stats: StatsSender<Status>) -> Generator {
         Generator {
             stats: stats,
             last: 0,

@@ -6,7 +6,7 @@ dependencies = [
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "mpmc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "tic 0.0.1",
+ "tic 0.0.2",
  "time 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "tic"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "heatmap 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "histogram 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
