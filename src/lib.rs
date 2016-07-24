@@ -10,6 +10,7 @@ extern crate tiny_http;
 
 mod counters;
 mod gauges;
+mod histograms;
 
 use std::fmt;
 use std::hash::Hash;
@@ -30,6 +31,7 @@ const ONE_MINUTE: u64 = 60 * ONE_SECOND;
 
 use counters::*;
 use gauges::*;
+use histograms::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Counter {
@@ -53,7 +55,7 @@ pub struct Stat<T> {
     status: T,
 }
 
-impl<T: Hash + Eq + Send> Stat<T> {
+impl<T: Hash + Eq + Send + Clone> Stat<T> {
     pub fn new(start: u64, stop: u64, status: T) -> Stat<T> {
         Stat {
             start: start,
@@ -61,11 +63,6 @@ impl<T: Hash + Eq + Send> Stat<T> {
             status: status,
         }
     }
-}
-
-pub struct Receiver<T> {
-    config: Config<T>,
-    queue: Arc<Queue<Stat<T>>>,
 }
 
 impl fmt::Display for Gauge {
@@ -184,7 +181,7 @@ pub struct Sender<T> {
 }
 
 
-impl<T: Hash + Eq + Send> Sender<T> {
+impl<T: Hash + Eq + Send + Clone> Sender<T> {
     pub fn send(&self, stat: Stat<T>) -> Result<(), Stat<T>> {
         self.queue.push(stat)
     }
@@ -200,7 +197,7 @@ pub struct Config<T> {
     resource_type: PhantomData<T>,
 }
 
-impl<T: Hash + Eq + Send> Default for Config<T> {
+impl<T: Hash + Eq + Send + Clone> Default for Config<T> {
     fn default() -> Config<T> {
         Config {
             duration: 60,
@@ -213,7 +210,7 @@ impl<T: Hash + Eq + Send> Default for Config<T> {
     }
 }
 
-impl<T: Hash + Eq + Send> Config<T> {
+impl<T: Hash + Eq + Send + Clone> Config<T> {
     /// create a new tic Config with defaults
     ///
     /// # Example
@@ -296,13 +293,21 @@ impl<T: Hash + Eq + Send> Config<T> {
     }
 }
 
-impl<T: Hash + Eq + Send> Default for Receiver<T> {
+pub struct Receiver<T> {
+    config: Config<T>,
+    queue: Arc<Queue<Stat<T>>>,
+    histograms: Histograms<T>,
+    counters: Counters<T>,
+    gauges: Gauges<T>,
+}
+
+impl<T: Hash + Eq + Send + Clone> Default for Receiver<T> {
     fn default() -> Self {
         Config::new().build()
     }
 }
 
-impl<T: Hash + Eq + Send> Receiver<T> {
+impl<T: Hash + Eq + Send + Clone> Receiver<T> {
     pub fn new() -> Receiver<T> {
         Default::default()
     }
@@ -312,6 +317,9 @@ impl<T: Hash + Eq + Send> Receiver<T> {
         Receiver {
             config: config,
             queue: queue,
+            histograms: Histograms::new(),
+            counters: Counters::new(),
+            gauges: Gauges::new(),
         }
     }
 
@@ -323,7 +331,7 @@ impl<T: Hash + Eq + Send> Receiver<T> {
         Sender { queue: self.queue.clone() }
     }
 
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         let duration = self.config.duration;
         let windows = self.config.windows;
         let trace = self.config.trace_file.clone();
@@ -357,6 +365,8 @@ impl<T: Hash + Eq + Send> Receiver<T> {
         debug!("stats: collection ready");
         loop {
             if let Some(result) = self.queue.pop() {
+                self.counters.increment(result.status.clone());
+                self.histograms.increment(result.status, result.stop - result.start);
                 window_counters.increment(Counter::Total);
                 let _ = histogram.increment(result.stop - result.start);
                 let _ = heatmap.increment(result.start, result.stop - result.start);
