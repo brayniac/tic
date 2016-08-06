@@ -5,10 +5,6 @@
 
 set -e
 
-cargo doc
-
-. ./scripts/doc.cfg
-
 [ "$TRAVIS_BRANCH" = master ]
 
 [ "$TRAVIS_OS_NAME" = linux ]
@@ -16,6 +12,10 @@ cargo doc
 [ "$TRAVIS_RUST_VERSION" = stable ]
 
 [ "$TRAVIS_PULL_REQUEST" = false ]
+
+cargo doc
+
+. ./scripts/doc.cfg
 
 eval key=\$encrypted_${SSH_KEY_TRAVIS_ID}_key
 eval iv=\$encrypted_${SSH_KEY_TRAVIS_ID}_iv

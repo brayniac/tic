@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate log;
+extern crate shuteye;
 
 use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 
@@ -8,47 +9,51 @@ extern crate getopts;
 extern crate time;
 
 use std::fmt;
+use std::time::Instant;
 use getopts::Options;
 use std::env;
 use std::thread;
 
-use time::precise_time_ns;
+use tic::{Interest, Receiver, Sample, Sender};
 
-use tic::Receiver as StatsReceiver;
-use tic::Sender as StatsSender;
-use tic::{Stat};
+//use shuteye::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Status {
+pub enum Metric {
     Ok,
 }
 
-impl fmt::Display for Status {
+impl fmt::Display for Metric {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Status::Ok => write!(f, "ok"),
+            Metric::Ok => write!(f, "ok"),
         }
     }
 }
 
 struct Generator {
-    stats: StatsSender<Status>,
-    last: u64,
+    stats: Sender<Metric>,
+    t0: Option<Instant>,
 }
 
 impl Generator {
-    fn new(stats: StatsSender<Status>) -> Generator {
+    fn new(stats: Sender<Metric>) -> Generator {
         Generator {
             stats: stats,
-            last: 0,
+            t0: None,
         }
     }
 
     fn run(&mut self) {
+
+        // let ts = Timespec::from_nano(60_000_000_000).unwrap();
+        // shuteye::sleep(ts);
         loop {
-            let now = precise_time_ns();
-            let _ = self.stats.send(Stat::new(self.last, now, Status::Ok));
-            self.last = now;
+            let t1 = Instant::now();
+            if let Some(t0) = self.t0 {
+                let _ = self.stats.send(Sample::new(t0, t1, Metric::Ok));
+            }
+            self.t0 = Some(t1);
         }
     }
 }
@@ -126,7 +131,14 @@ fn main() {
     set_log_level(0);
     info!("tic benchmark");
 
-    let mut receiver = StatsReceiver::configure().windows(60).duration(1).build();
+    let mut receiver = Receiver::configure()
+        .windows(15)
+        .duration(60)
+        .http_listen("localhost:42024".to_owned())
+        .build();
+
+    receiver.add_interest(Interest::Waterfall(Metric::Ok, "ok_waterfall.png".to_owned()));
+    receiver.add_interest(Interest::Count(Metric::Ok));
 
     let sender = receiver.get_sender();
 
