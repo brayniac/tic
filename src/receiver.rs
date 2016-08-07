@@ -48,6 +48,7 @@ pub struct Receiver<T> {
     interests: Vec<Interest<T>>,
     percentiles: Vec<Percentile>,
     heatmaps: Heatmaps<T>,
+    server: Option<Server>,
 }
 
 impl<T: Hash + Eq + Send + Clone + Display> Default for Receiver<T> {
@@ -67,6 +68,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn configured(config: Config<T>) -> Receiver<T> {
         let queue = Arc::new(Queue::<Sample<T>>::with_capacity(8));
         let slices = config.duration * config.windows;
+
+        let listen = config.http_listen.clone();
+        let server = start_listener(listen);
+
         Receiver {
             config: config,
             queue: queue,
@@ -75,6 +80,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             interests: Vec::new(),
             percentiles: default_percentiles(),
             heatmaps: Heatmaps::new(slices),
+            server: server,
         }
     }
 
@@ -94,7 +100,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     }
 
     /// run the receive loop for one window
-    pub fn run_once(&mut self, server: &Option<Server>) {
+    pub fn run_once(&mut self) {
         let duration = self.config.duration;
 
         let t0 = Instant::now();
@@ -105,7 +111,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 self.heatmaps.increment(result.metric(), result.start(), result.duration());
             }
 
-            self.try_handle_http(server);
+            self.try_handle_http(&self.server);
 
             let t1 = Instant::now();
 
@@ -145,13 +151,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// run the receive loop for all windows, output waterfall and traces as requested
     pub fn run(&mut self) {
-        let listen = self.config.http_listen.clone();
-        let server = self.start_listener(listen);
-
         let mut window = 0;
         debug!("collection ready");
         loop {
-            self.run_once(&server);
+            self.run_once();
             window += 1;
             if window >= self.config.windows {
                 break;
@@ -189,17 +192,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             debug!("stats: saving waterfall render");
             self.heatmaps.total_waterfall(file);
         }
-    }
-
-    // start the HTTP listener for tic
-    fn start_listener(&self, listen: Option<String>) -> Option<Server> {
-        if let Some(ref l) = listen {
-            let http_socket = l.to_socket_addrs().unwrap().next().unwrap();
-
-            debug!("stats: starting HTTP listener");
-            return Some(Server::http(http_socket).unwrap());
-        }
-        None
     }
 
     // try to handle a http request
@@ -242,6 +234,17 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let response = Response::from_string(output);
         let _ = request.respond(response);
     }
+}
+
+// start the HTTP listener for tic
+fn start_listener(listen: Option<String>) -> Option<Server> {
+    if let Some(ref l) = listen {
+        let http_socket = l.to_socket_addrs().unwrap().next().unwrap();
+
+        debug!("stats: starting HTTP listener");
+        return Some(Server::http(http_socket).unwrap());
+    }
+    None
 }
 
 // helper function to populate the default `Percentile`s to report
