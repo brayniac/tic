@@ -16,6 +16,7 @@ use histogram::Histogram;
 pub struct Config<T> {
     pub duration: usize,
     pub windows: usize,
+    pub capacity: usize,
     pub http_listen: Option<String>,
     pub trace_file: Option<String>,
     pub waterfall_file: Option<String>,
@@ -35,6 +36,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
         Config {
             duration: 60,
             windows: 60,
+            capacity: 1000,
             http_listen: None,
             trace_file: None,
             waterfall_file: None,
@@ -82,6 +84,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     pub fn windows(mut self, windows: usize) -> Self {
         self.windows = windows;
         self.heatmap_config.num_slices(self.duration * self.windows);
+        self
+    }
+
+    /// set capacity of the queue: default 1000
+    ///
+    /// # Example
+    /// ```
+    /// # use tic::Receiver;
+    /// let mut c = Receiver::<usize>::configure();
+    /// c.capacity(1000); // buffer for 1000 metrics
+    /// ```
+    pub fn capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
         self
     }
 

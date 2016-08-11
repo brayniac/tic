@@ -3,27 +3,32 @@ use std::hash::Hash;
 use std::time::Instant;
 
 
-/// a start and stop time for a metric
+/// a start and stop time for an event
 #[derive(Clone)]
 pub struct Sample<T> {
     start: Instant,
     stop: Instant,
-    metric: T,
+    channel: T,
 }
 
 impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
-    /// create a new Sample from given start, stop, and metric
-    pub fn new(start: Instant, stop: Instant, metric: T) -> Sample<T> {
+    /// create a new Sample from given start, stop, and channel
+    pub fn new(start: Instant, stop: Instant, channel: T) -> Sample<T> {
         Sample {
             start: start,
             stop: stop,
-            metric: metric,
+            channel: channel,
         }
     }
 
-    /// return the metric
+    /// return the metric /// deprecated
     pub fn metric(&self) -> T {
-        self.metric.clone()
+        self.channel.clone()
+    }
+
+    /// return the metric
+    pub fn channel(&self) -> T {
+        self.channel.clone()
     }
 
     /// return the duration

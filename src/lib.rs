@@ -51,3 +51,4 @@ mod sample;
 pub use config::Config;
 pub use receiver::{Interest, Receiver, Sender};
 pub use sample::Sample;
+pub use meters::Meters;

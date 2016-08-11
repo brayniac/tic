@@ -7,7 +7,9 @@ use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 extern crate tic;
 extern crate getopts;
 extern crate time;
+extern crate pad;
 
+use pad::{PadStr, Alignment};
 use std::fmt;
 use std::time::Instant;
 use getopts::Options;
@@ -16,7 +18,7 @@ use std::thread;
 
 use tic::{Interest, Receiver, Sample, Sender};
 
-//use shuteye::*;
+// use shuteye::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
@@ -45,9 +47,6 @@ impl Generator {
     }
 
     fn run(&mut self) {
-
-        // let ts = Timespec::from_nano(60_000_000_000).unwrap();
-        // shuteye::sleep(ts);
         loop {
             let t1 = Instant::now();
             if let Some(t0) = self.t0 {
@@ -67,10 +66,14 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &LogRecord) {
         if self.enabled(record.metadata()) {
-            println!("{} {:<5} [{}] {}",
+            let ms = format!("{:.*}",
+                             3,
+                             ((time::precise_time_ns() % 1_000_000_000) / 1_000_000));
+            println!("{}.{} {:<5} [{}] {}",
                      time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
+                     ms.pad(3, '0', Alignment::Right, true),
                      record.level().to_string(),
-                     "benchmark",
+                     "rpc-perf",
                      record.args());
         }
     }
@@ -131,9 +134,11 @@ fn main() {
     set_log_level(0);
     info!("tic benchmark");
 
+    // initialize a Receiver for the benchmark
     let mut receiver = Receiver::configure()
-        .windows(15)
-        .duration(60)
+        .windows(60)
+        .duration(1)
+        .capacity(10_000)
         .http_listen("localhost:42024".to_owned())
         .build();
 
@@ -153,5 +158,21 @@ fn main() {
         });
     }
 
-    receiver.run();
+    let mut total = 0;
+
+    let windows = 60;
+    // we run the receiver manually so we can access the Meters
+    for _ in 0..windows {
+        receiver.run_once();
+        let m = receiver.clone_meters();
+        let mut c = 0;
+        if let Some(t) = m.get_combined_count() {
+            c = *t - total;
+            total = *t;
+        }
+        let r = c / 1;
+        info!("rate: {} samples per second", r);
+    }
+
+
 }

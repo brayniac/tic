@@ -1,3 +1,5 @@
+extern crate shuteye;
+
 use std::sync::Arc;
 use std::time::Instant;
 use std::fmt::Display;
@@ -24,7 +26,7 @@ pub enum Interest<T> {
 
 #[derive(Clone)]
 /// a Percentile is the label plus floating point percentile representation
-pub struct Percentile(String, f64);
+pub struct Percentile(pub String, pub f64);
 
 #[derive(Clone)]
 /// a Sender is used to push `Sample`s to the `Receiver` it is clonable for sharing between threads
@@ -33,6 +35,7 @@ pub struct Sender<T> {
 }
 
 impl<T: Hash + Eq + Send + Clone> Sender<T> {
+    #[inline]
     /// a function to send a `Sample` to the `Receiver`
     pub fn send(&self, sample: Sample<T>) -> Result<(), Sample<T>> {
         self.queue.push(sample)
@@ -44,7 +47,7 @@ pub struct Receiver<T> {
     config: Config<T>,
     queue: Arc<Queue<Sample<T>>>,
     histograms: Histograms<T>,
-    meters: Meters<String>,
+    meters: Meters<T>,
     interests: Vec<Interest<T>>,
     percentiles: Vec<Percentile>,
     heatmaps: Heatmaps<T>,
@@ -66,7 +69,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// create a `Receiver` from a tic::Config
     pub fn configured(config: Config<T>) -> Receiver<T> {
-        let queue = Arc::new(Queue::<Sample<T>>::with_capacity(8));
+        let queue = Arc::new(Queue::<Sample<T>>::with_capacity(config.capacity));
         let slices = config.duration * config.windows;
 
         let listen = config.http_listen.clone();
@@ -105,47 +108,53 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
         let t0 = Instant::now();
 
-        loop {
-            if let Some(result) = self.queue.pop() {
-                self.histograms.increment(result.metric(), result.duration());
-                self.heatmaps.increment(result.metric(), result.start(), result.duration());
+        'outer: loop {
+            // we process stats and handle elapsed duration
+            // more frequently than we handle http requests
+            for _ in 0..1000 {
+                if let Some(result) = self.queue.pop() {
+                    self.histograms.increment(result.metric(), result.duration());
+                    self.heatmaps.increment(result.metric(), result.start(), result.duration());
+                }
+
+                let t1 = Instant::now();
+
+                if (t1 - t0).as_secs() >= duration as u64 {
+                    for interest in self.interests.clone() {
+                        match interest {
+                            Interest::Count(l) => {
+                                self.meters.set_count(l.clone(), self.heatmaps.metric_count(l));
+                            }
+                            Interest::Percentile(l) => {
+                                for percentile in self.percentiles.clone() {
+                                    let v = l.clone();
+                                    self.meters
+                                        .set_percentile(v.clone(),
+                                                        percentile.clone(),
+                                                        self.histograms
+                                                            .metric_percentile(v, percentile.1)
+                                                            .unwrap_or(0));
+                                }
+                            }
+                            Interest::Trace(_, _) |
+                            Interest::Waterfall(_, _) => {}
+                        }
+                    }
+
+                    self.meters.set_combined_count(self.heatmaps.total_count());
+                    for percentile in self.percentiles.clone() {
+                        self.meters.set_combined_percentile(percentile.clone(),
+                                                            self.histograms
+                                                                .total_percentile(percentile.1)
+                                                                .unwrap_or(0));
+                    }
+
+                    self.histograms.clear();
+                    break 'outer;
+                }
             }
 
             self.try_handle_http(&self.server);
-
-            let t1 = Instant::now();
-
-            if (t1 - t0).as_secs() >= duration as u64 {
-                for interest in self.interests.clone() {
-                    match interest {
-                        Interest::Count(l) => {
-                            self.meters.set(format!("{}_count", l), self.heatmaps.metric_count(l));
-                        }
-                        Interest::Percentile(l) => {
-                            for percentile in self.percentiles.clone() {
-                                let v = l.clone();
-                                self.meters.set(format!("{}_{}_nanoseconds", v, percentile.0),
-                                                self.histograms
-                                                    .metric_percentile(v, percentile.1)
-                                                    .unwrap_or(0));
-                            }
-                        }
-                        Interest::Trace(_, _) |
-                        Interest::Waterfall(_, _) => {}
-                    }
-                }
-
-                self.meters.set("all_samples_total".to_owned(), self.heatmaps.total_count());
-                for percentile in self.percentiles.clone() {
-                    self.meters.set(format!("all_samples_{}_nanoseconds", percentile.0),
-                                    self.histograms
-                                        .total_percentile(percentile.1)
-                                        .unwrap_or(0));
-                }
-
-                self.histograms.clear();
-                break;
-            }
         }
     }
 
@@ -192,6 +201,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             debug!("stats: saving waterfall render");
             self.heatmaps.total_waterfall(file);
         }
+    }
+
+    pub fn clone_meters(&self) -> Meters<T> {
+        self.meters.clone()
     }
 
     // try to handle a http request
