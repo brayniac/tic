@@ -4,7 +4,6 @@ extern crate histogram;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::time::Duration;
 
 use receiver::Receiver;
 
@@ -28,7 +27,7 @@ pub struct Config<T> {
 impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
     fn default() -> Config<T> {
         let heatmap_config = Heatmap::configure()
-            .slice_duration(Duration::new(1, 0))
+            .slice_duration(1_000_000_000)
             .precision(2);
         let histogram_config = Histogram::configure()
             .max_value(60 * 1_000_000_000)

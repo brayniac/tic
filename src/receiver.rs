@@ -1,11 +1,12 @@
+extern crate clocksource;
 extern crate shuteye;
 
 use std::sync::Arc;
-use std::time::Instant;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::ToSocketAddrs;
 
+use clocksource::Clocksource;
 use mpmc::Queue;
 use tiny_http::{Server, Response, Request};
 
@@ -52,6 +53,7 @@ pub struct Receiver<T> {
     percentiles: Vec<Percentile>,
     heatmaps: Heatmaps<T>,
     server: Option<Server>,
+    clocksource: Clocksource,
 }
 
 impl<T: Hash + Eq + Send + Clone + Display> Default for Receiver<T> {
@@ -75,6 +77,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let listen = config.http_listen.clone();
         let server = start_listener(listen);
 
+        let clocksource = Clocksource::default();
+        let t0 = clocksource.time();
+
         Receiver {
             config: config,
             queue: queue,
@@ -82,8 +87,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             meters: Meters::new(),
             interests: Vec::new(),
             percentiles: default_percentiles(),
-            heatmaps: Heatmaps::new(slices),
+            heatmaps: Heatmaps::new(slices, t0),
             server: server,
+            clocksource: clocksource,
         }
     }
 
@@ -97,6 +103,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         Sender { queue: self.queue.clone() }
     }
 
+    /// returns a clone of the `Clocksource`
+    pub fn get_clocksource(&self) -> Clocksource {
+        self.clocksource.clone()
+    }
+
     /// register a stat for export
     pub fn add_interest(&mut self, interest: Interest<T>) {
         self.interests.push(interest)
@@ -106,20 +117,23 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn run_once(&mut self) {
         let duration = self.config.duration;
 
-        let t0 = Instant::now();
+        let t0 = self.clocksource.counter();
+        let t1 = t0 + (duration as f64 * self.clocksource.frequency()) as u64;
 
         'outer: loop {
             // we process stats and handle elapsed duration
             // more frequently than we handle http requests
             for _ in 0..1000 {
                 if let Some(result) = self.queue.pop() {
-                    self.histograms.increment(result.metric(), result.duration());
-                    self.heatmaps.increment(result.metric(), result.start(), result.duration());
+                    let t0 = self.clocksource.convert(result.start());
+                    let t1 = self.clocksource.convert(result.stop());
+                    let dt = t1 - t0;
+                    self.histograms.increment(result.metric(), dt as u64);
+                    self.heatmaps.increment(result.metric(), t0 as u64, dt as u64);
                 }
 
-                let t1 = Instant::now();
-
-                if (t1 - t0).as_secs() >= duration as u64 {
+                let tsc = self.clocksource.counter();
+                if tsc >= t1 {
                     for interest in self.interests.clone() {
                         match interest {
                             Interest::Count(l) => {
@@ -170,6 +184,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             }
         }
 
+        self.save_files();
+    }
+
+    /// save all artifacts
+    pub fn save_files(&mut self) {
         for interest in self.interests.clone() {
             match interest {
                 Interest::Count(_) |
@@ -231,12 +250,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 }
             }
             "/vars" | "/metrics" => {
+                for (stat, value) in &self.meters.combined {
+                    output = output + &format!("{} {}\n", stat, value);
+                }
                 for (stat, value) in &self.meters.data {
                     output = output + &format!("{} {}\n", stat, value);
                 }
             }
             _ => {
                 output = output + "{";
+                for (stat, value) in &self.meters.combined {
+                    output = output + &format!("\"{}\":{},", stat, value);
+                }
                 for (stat, value) in &self.meters.data {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }

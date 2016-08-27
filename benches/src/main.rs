@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate shuteye;
+extern crate rand;
 
 use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 
@@ -11,14 +12,11 @@ extern crate pad;
 
 use pad::{PadStr, Alignment};
 use std::fmt;
-use std::time::Instant;
 use getopts::Options;
 use std::env;
 use std::thread;
 
-use tic::{Interest, Receiver, Sample, Sender};
-
-// use shuteye::*;
+use tic::{Clocksource, Interest, Receiver, Sample, Sender};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
@@ -35,20 +33,22 @@ impl fmt::Display for Metric {
 
 struct Generator {
     stats: Sender<Metric>,
-    t0: Option<Instant>,
+    t0: Option<u64>,
+    clocksource: Clocksource,
 }
 
 impl Generator {
-    fn new(stats: Sender<Metric>) -> Generator {
+    fn new(stats: Sender<Metric>, clocksource: Clocksource) -> Generator {
         Generator {
             stats: stats,
             t0: None,
+            clocksource: clocksource,
         }
     }
 
     fn run(&mut self) {
         loop {
-            let t1 = Instant::now();
+            let t1 = self.clocksource.counter();
             if let Some(t0) = self.t0 {
                 let _ = self.stats.send(Sample::new(t0, t1, Metric::Ok));
             }
@@ -73,7 +73,7 @@ impl log::Log for SimpleLogger {
                      time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
                      ms.pad(3, '0', Alignment::Right, true),
                      record.level().to_string(),
-                     "rpc-perf",
+                     "tic benchmark",
                      record.args());
         }
     }
@@ -107,6 +107,8 @@ pub fn opts() -> Options {
     let mut opts = Options::new();
 
     opts.optopt("p", "producers", "number of producers", "INTEGER");
+    opts.optopt("w", "windows", "number of integration windows", "INTEGER");
+    opts.optopt("d", "duration", "length of integration window", "INTEGER");
     opts.optflag("h", "help", "print this help menu");
 
     opts
@@ -134,18 +136,23 @@ fn main() {
     set_log_level(0);
     info!("tic benchmark");
 
+    let windows = matches.opt_str("windows").unwrap_or("60".to_owned()).parse().unwrap();
+    let duration = matches.opt_str("duration").unwrap_or("1".to_owned()).parse().unwrap();
+
     // initialize a Receiver for the benchmark
     let mut receiver = Receiver::configure()
-        .windows(60)
-        .duration(1)
+        .windows(windows)
+        .duration(duration)
         .capacity(10_000)
         .http_listen("localhost:42024".to_owned())
         .build();
 
     receiver.add_interest(Interest::Waterfall(Metric::Ok, "ok_waterfall.png".to_owned()));
+    receiver.add_interest(Interest::Trace(Metric::Ok, "ok_trace.txt".to_owned()));
     receiver.add_interest(Interest::Count(Metric::Ok));
 
     let sender = receiver.get_sender();
+    let clocksource = receiver.get_clocksource();
 
     let producers = matches.opt_str("producers").unwrap_or("1".to_owned()).parse().unwrap();
 
@@ -153,26 +160,30 @@ fn main() {
 
     for _ in 0..producers {
         let s = sender.clone();
+        let c = clocksource.clone();
         thread::spawn(move || {
-            Generator::new(s).run();
+            Generator::new(s, c).run();
         });
     }
 
     let mut total = 0;
 
-    let windows = 60;
+    let windows = windows;
     // we run the receiver manually so we can access the Meters
     for _ in 0..windows {
+        let t0 = clocksource.time();
         receiver.run_once();
+        let t1 = clocksource.time();
         let m = receiver.clone_meters();
         let mut c = 0;
         if let Some(t) = m.get_combined_count() {
             c = *t - total;
             total = *t;
         }
-        let r = c / 1;
+        let r = c as f64 / ((t1 - t0) as f64 / 1_000_000_000.0);
         info!("rate: {} samples per second", r);
     }
-
-
+    info!("saving files...");
+    receiver.save_files();
+    info!("saved");
 }

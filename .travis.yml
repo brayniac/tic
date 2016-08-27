@@ -7,3 +7,11 @@ os:
 - linux
 - osx
 after_success: sh scripts/travis-doc-upload.sh
+matrix:
+  include:
+    - os: linux
+      rust: nightly
+      script: cargo build --features asm
+    - os: osx
+      rust: nightly
+      script: cargo build --features asm

@@ -1,19 +1,17 @@
 use std::fmt::Display;
 use std::hash::Hash;
-use std::time::Instant;
-
 
 /// a start and stop time for an event
 #[derive(Clone)]
 pub struct Sample<T> {
-    start: Instant,
-    stop: Instant,
+    start: u64,
+    stop: u64,
     channel: T,
 }
 
 impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
     /// create a new Sample from given start, stop, and channel
-    pub fn new(start: Instant, stop: Instant, channel: T) -> Sample<T> {
+    pub fn new(start: u64, stop: u64, channel: T) -> Sample<T> {
         Sample {
             start: start,
             stop: stop,
@@ -33,12 +31,16 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
 
     /// return the duration
     pub fn duration(&self) -> u64 {
-        let d = self.stop.duration_since(self.start);
-        d.as_secs() as u64 * 1_000_000_000 + d.subsec_nanos() as u64
+        self.stop - self.start
     }
 
     /// return the start time
-    pub fn start(&self) -> Instant {
+    pub fn start(&self) -> u64 {
         self.start
+    }
+
+    /// return the stop time
+    pub fn stop(&self) -> u64 {
+        self.stop
     }
 }

@@ -33,7 +33,7 @@
 
 #[macro_use]
 extern crate log;
-
+extern crate clocksource;
 extern crate mpmc;
 extern crate heatmap;
 extern crate histogram;
@@ -49,6 +49,8 @@ mod receiver;
 mod sample;
 
 pub use config::Config;
-pub use receiver::{Interest, Receiver, Sender};
+pub use receiver::{Interest, Receiver, Sender, Percentile};
 pub use sample::Sample;
 pub use meters::Meters;
+
+pub use clocksource::Clocksource;

@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Brian Martin <brayniac@gmail.com>"]
 
 [dependencies]
-tic = { path = "../"}
 time = "*"
 log = "*"
 getopts = "*"
@@ -12,6 +11,10 @@ canal = "*"
 mpmc = "*"
 shuteye = "*"
 pad = "*"
+rand = "*"
+
+[dependencies.tic]
+path = "../"
 
 [profile.dev]
 opt-level = 0
@@ -36,3 +39,7 @@ rpath = false
 lto = true
 debug-assertions = false
 codegen-units = 1
+
+[features]
+asm = [ "tic/asm" ]
+default = []
