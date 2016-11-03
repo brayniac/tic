@@ -16,6 +16,7 @@ pub struct Config<T> {
     pub duration: usize,
     pub windows: usize,
     pub capacity: usize,
+    pub batch_size: usize,
     pub http_listen: Option<String>,
     pub trace_file: Option<String>,
     pub waterfall_file: Option<String>,
@@ -35,7 +36,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
         Config {
             duration: 60,
             windows: 60,
-            capacity: 1000,
+            capacity: 256,
+            batch_size: 512,
             http_listen: None,
             trace_file: None,
             waterfall_file: None,
@@ -86,16 +88,29 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
         self
     }
 
-    /// set capacity of the queue: default 1000
+    /// set capacity of the queue: default 256
     ///
     /// # Example
     /// ```
     /// # use tic::Receiver;
     /// let mut c = Receiver::<usize>::configure();
-    /// c.capacity(1000); // buffer for 1000 metrics
+    /// c.capacity(256); // buffer for 256 batches of samples
     /// ```
     pub fn capacity(mut self, capacity: usize) -> Self {
         self.capacity = capacity;
+        self
+    }
+
+    /// set batch size of the sender: default 512
+    ///
+    /// # Example
+    /// ```
+    /// # use tic::Receiver;
+    /// let mut c = Receiver::<usize>::configure();
+    /// c.batch_size(512); // batch 512 samples in one queue write
+    /// ```
+    pub fn batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
         self
     }
 

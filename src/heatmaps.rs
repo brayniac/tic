@@ -54,7 +54,7 @@ impl<T: Hash + Eq> Heatmaps<T> {
 
     pub fn metric_waterfall(&self, key: T, file: String) {
         if let Some(h) = self.metric.get(&key) {
-            info!("trace for heatmap with: {} slices", h.num_slices());
+            trace!("trace for heatmap with: {} slices", h.num_slices());
             let mut waterfall = Waterfall::new();
             waterfall.render_png(h, file);
         }

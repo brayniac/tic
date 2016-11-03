@@ -18,14 +18,15 @@ keywords = [ "stats", "metrics", "telemetry", "interval" ]
 include = [ "src/**/*", "README.md", "LICENSE-*", "Cargo.toml" ]
 
 [dependencies]
-log = "0.3.6"
+bytes = "0.3.0"
+clocksource = "0.2.0"
 heatmap = "0.6.2"
 histogram = "0.6.3"
-waterfall = "0.6.3"
+log = "0.3.6"
+mio = "0.6.0"
 shuteye = "0.2.0"
 tiny_http = "0.5.2"
-mpmc = "0.1.2"
-clocksource = "0.2.0"
+waterfall = "0.6.3"
 
 [features]
 asm = [ "clocksource/asm" ]

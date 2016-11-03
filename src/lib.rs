@@ -33,8 +33,9 @@
 
 #[macro_use]
 extern crate log;
+extern crate bytes;
 extern crate clocksource;
-extern crate mpmc;
+extern crate mio;
 extern crate heatmap;
 extern crate histogram;
 extern crate waterfall;

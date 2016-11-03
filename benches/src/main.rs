@@ -109,6 +109,8 @@ pub fn opts() -> Options {
     opts.optopt("p", "producers", "number of producers", "INTEGER");
     opts.optopt("w", "windows", "number of integration windows", "INTEGER");
     opts.optopt("d", "duration", "length of integration window", "INTEGER");
+    opts.optopt("c", "capacity", "size of the mpmc queue", "INTEGER");
+    opts.optopt("b", "batch", "batch size of producer writes to queue", "INTEGER");
     opts.optflag("h", "help", "print this help menu");
 
     opts
@@ -133,17 +135,20 @@ fn main() {
         print_usage(program, opts);
         return;
     }
-    set_log_level(0);
+    set_log_level(1);
     info!("tic benchmark");
 
     let windows = matches.opt_str("windows").unwrap_or("60".to_owned()).parse().unwrap();
     let duration = matches.opt_str("duration").unwrap_or("1".to_owned()).parse().unwrap();
+    let capacity = matches.opt_str("capacity").unwrap_or("10000".to_owned()).parse().unwrap();
+    let batch = matches.opt_str("batch").unwrap_or("1".to_owned()).parse().unwrap();
 
     // initialize a Receiver for the benchmark
     let mut receiver = Receiver::configure()
         .windows(windows)
         .duration(duration)
-        .capacity(10_000)
+        .capacity(capacity)
+        .batch_size(batch)
         .http_listen("localhost:42024".to_owned())
         .build();
 

@@ -1,13 +1,18 @@
 extern crate clocksource;
+extern crate mio;
 extern crate shuteye;
 
-use std::sync::Arc;
 use std::fmt::Display;
 use std::hash::Hash;
+use std::io::{self, Read, Write};
 use std::net::ToSocketAddrs;
+use std::time::Duration;
 
+use bytes::{Buf, MutBuf};
 use clocksource::Clocksource;
-use mpmc::Queue;
+use mio::*;
+use mio::channel::{SyncSender};
+use mio::timer::{Timer};
 use tiny_http::{Server, Response, Request};
 
 use config::Config;
@@ -15,6 +20,79 @@ use meters::Meters;
 use histograms::Histograms;
 use heatmaps::Heatmaps;
 use sample::Sample;
+
+pub trait TryRead {
+    fn try_read_buf<B: MutBuf>(&mut self, buf: &mut B) -> io::Result<Option<usize>>
+        where Self : Sized
+    {
+        // Reads the length of the slice supplied by buf.mut_bytes into the buffer
+        // This is not guaranteed to consume an entire datagram or segment.
+        // If your protocol is msg based (instead of continuous stream) you should
+        // ensure that your buffer is large enough to hold an entire segment (1532 bytes if not jumbo
+        // frames)
+        let res = self.try_read(unsafe { buf.mut_bytes() });
+
+        if let Ok(Some(cnt)) = res {
+            unsafe { buf.advance(cnt); }
+        }
+
+        res
+    }
+
+    fn try_read(&mut self, buf: &mut [u8]) -> io::Result<Option<usize>>;
+}
+
+pub trait TryWrite {
+    fn try_write_buf<B: Buf>(&mut self, buf: &mut B) -> io::Result<Option<usize>>
+        where Self : Sized
+    {
+        let res = self.try_write(buf.bytes());
+
+        if let Ok(Some(cnt)) = res {
+            buf.advance(cnt);
+        }
+
+        res
+    }
+
+    fn try_write(&mut self, buf: &[u8]) -> io::Result<Option<usize>>;
+}
+
+impl<T: Read> TryRead for T {
+    fn try_read(&mut self, dst: &mut [u8]) -> io::Result<Option<usize>> {
+        self.read(dst).map_non_block()
+    }
+}
+
+impl<T: Write> TryWrite for T {
+    fn try_write(&mut self, src: &[u8]) -> io::Result<Option<usize>> {
+        self.write(src).map_non_block()
+    }
+}
+
+/// A helper trait to provide the `map_non_block` function on Results.
+trait MapNonBlock<T> {
+    /// Maps a `Result<T>` to a `Result<Option<T>>` by converting
+    /// operation-would-block errors into `Ok(None)`.
+    fn map_non_block(self) -> io::Result<Option<T>>;
+}
+
+impl<T> MapNonBlock<T> for io::Result<T> {
+    fn map_non_block(self) -> io::Result<Option<T>> {
+        use std::io::ErrorKind::WouldBlock;
+
+        match self {
+            Ok(value) => Ok(Some(value)),
+            Err(err) => {
+                if let WouldBlock = err.kind() {
+                    Ok(None)
+                } else {
+                    Err(err)
+                }
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 /// an Interest registers a metric for reporting
@@ -32,21 +110,34 @@ pub struct Percentile(pub String, pub f64);
 #[derive(Clone)]
 /// a Sender is used to push `Sample`s to the `Receiver` it is clonable for sharing between threads
 pub struct Sender<T> {
-    queue: Arc<Queue<Sample<T>>>,
+    queue: SyncSender<Vec<Sample<T>>>,
+    buffer: Vec<Sample<T>>,
+    batch_size: usize,
 }
 
 impl<T: Hash + Eq + Send + Clone> Sender<T> {
     #[inline]
     /// a function to send a `Sample` to the `Receiver`
-    pub fn send(&self, sample: Sample<T>) -> Result<(), Sample<T>> {
-        self.queue.push(sample)
+    pub fn send(&mut self, sample: Sample<T>) -> Result<(), ()> {
+        self.buffer.push(sample);
+        if self.buffer.len() >= self.batch_size {
+            if self.queue.send(self.buffer.clone()).is_ok() {
+                self.buffer.clear();
+                return Ok(());
+            } else {
+                return Err(());
+            }
+        }
+        Ok(())
     }
 }
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
     config: Config<T>,
-    queue: Arc<Queue<Sample<T>>>,
+    tx: SyncSender<Vec<Sample<T>>>,
+    rx: mio::channel::Receiver<Vec<Sample<T>>>,
+    poll: Poll,
     histograms: Histograms<T>,
     meters: Meters<T>,
     interests: Vec<Interest<T>>,
@@ -71,7 +162,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// create a `Receiver` from a tic::Config
     pub fn configured(config: Config<T>) -> Receiver<T> {
-        let queue = Arc::new(Queue::<Sample<T>>::with_capacity(config.capacity));
+        let (tx, rx) = mio::channel::sync_channel(config.capacity);
+        let tx = tx;
+
         let slices = config.duration * config.windows;
 
         let listen = config.http_listen.clone();
@@ -80,9 +173,15 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let clocksource = Clocksource::default();
         let t0 = clocksource.time();
 
+        let poll = Poll::new().unwrap();
+
+        poll.register(&rx, Token(1), Ready::readable(), PollOpt::level()).unwrap();
+
         Receiver {
             config: config,
-            queue: queue,
+            tx: tx,
+            rx: rx,
+            poll: poll,
             histograms: Histograms::new(),
             meters: Meters::new(),
             interests: Vec::new(),
@@ -100,7 +199,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// returns a clone of the `Sender`
     pub fn get_sender(&self) -> Sender<T> {
-        Sender { queue: self.queue.clone() }
+        Sender { 
+            queue: self.tx.clone(),
+            buffer: Vec::new(),
+            batch_size: self.config.batch_size,
+        }
     }
 
     /// returns a clone of the `Clocksource`
@@ -115,61 +218,90 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// run the receive loop for one window
     pub fn run_once(&mut self) {
+        let mut events = Events::with_capacity(1024);
+        let mut main_timer = Timer::default();
+        let mut http_timer = Timer::default();
+
+        self.poll.register(&main_timer, Token(0), Ready::readable(), PollOpt::edge()).unwrap();
+        self.poll.register(&http_timer, Token(2), Ready::readable(), PollOpt::edge()).unwrap();
+        main_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
+        http_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
+
         let duration = self.config.duration;
 
         let t0 = self.clocksource.counter();
         let t1 = t0 + (duration as f64 * self.clocksource.frequency()) as u64;
 
         'outer: loop {
-            // we process stats and handle elapsed duration
-            // more frequently than we handle http requests
-            for _ in 0..1000 {
-                if let Some(result) = self.queue.pop() {
-                    let t0 = self.clocksource.convert(result.start());
-                    let t1 = self.clocksource.convert(result.stop());
-                    let dt = t1 - t0;
-                    self.histograms.increment(result.metric(), dt as u64);
-                    self.heatmaps.increment(result.metric(), t0 as u64, dt as u64);
-                }
-
-                let tsc = self.clocksource.counter();
-                if tsc >= t1 {
-                    for interest in self.interests.clone() {
-                        match interest {
-                            Interest::Count(l) => {
-                                self.meters.set_count(l.clone(), self.heatmaps.metric_count(l));
+            self.poll.poll(&mut events, Some(Duration::from_millis(1))).unwrap();
+            for event in events.iter() {
+                if event.token() == Token(1) {
+                    for _ in 0..(self.config.capacity) {
+                        if let Ok(results) = self.rx.try_recv() {
+                            for result in results {
+                                let t0 = self.clocksource.convert(result.start());
+                                let t1 = self.clocksource.convert(result.stop());
+                                let dt = t1 - t0;
+                                self.histograms.increment(result.metric(), dt as u64);
+                                self.heatmaps.increment(result.metric(), t0 as u64, dt as u64);
                             }
-                            Interest::Percentile(l) => {
-                                for percentile in self.percentiles.clone() {
-                                    let v = l.clone();
-                                    self.meters
-                                        .set_percentile(v.clone(),
-                                                        percentile.clone(),
-                                                        self.histograms
-                                                            .metric_percentile(v, percentile.1)
-                                                            .unwrap_or(0));
-                                }
-                            }
-                            Interest::Trace(_, _) |
-                            Interest::Waterfall(_, _) => {}
+                        } else {
+                            break;
                         }
                     }
-
-                    self.meters.set_combined_count(self.heatmaps.total_count());
-                    for percentile in self.percentiles.clone() {
-                        self.meters.set_combined_percentile(percentile.clone(),
-                                                            self.histograms
-                                                                .total_percentile(percentile.1)
-                                                                .unwrap_or(0));
+                }
+                if event.token() == Token(0) {
+                    trace!("check elapsed");
+                    if self.check_elapsed(t1) {
+                        break 'outer;
                     }
+                    main_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
+                }
+                if event.token() == Token(2) {
+                    trace!("serve http");
+                    http_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
+                    self.try_handle_http(&self.server);
+                }
+            }
+        }
+    }
 
-                    self.histograms.clear();
-                    break 'outer;
+    fn check_elapsed(&mut self, t1: u64) -> bool {
+        let tsc = self.clocksource.counter();
+        if tsc >= t1 {
+            for interest in self.interests.clone() {
+                match interest {
+                    Interest::Count(l) => {
+                        self.meters.set_count(l.clone(), self.heatmaps.metric_count(l));
+                    }
+                    Interest::Percentile(l) => {
+                        for percentile in self.percentiles.clone() {
+                            let v = l.clone();
+                            self.meters
+                                .set_percentile(v.clone(),
+                                                percentile.clone(),
+                                                self.histograms
+                                                    .metric_percentile(v, percentile.1)
+                                                    .unwrap_or(0));
+                        }
+                    }
+                    Interest::Trace(_, _) |
+                    Interest::Waterfall(_, _) => {}
                 }
             }
 
-            self.try_handle_http(&self.server);
+            self.meters.set_combined_count(self.heatmaps.total_count());
+            for percentile in self.percentiles.clone() {
+                self.meters.set_combined_percentile(percentile.clone(),
+                                                    self.histograms
+                                                        .total_percentile(percentile.1)
+                                                        .unwrap_or(0));
+            }
+
+            self.histograms.clear();
+            return true;
         }
+        false
     }
 
     /// run the receive loop for all windows, output waterfall and traces as requested
