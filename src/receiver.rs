@@ -376,7 +376,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             "/histogram" => {
                 for bucket in &self.histograms.total {
                     if bucket.count() > 0 {
-
                         output = output + &format!("{} {}\n", bucket.value(), bucket.count());
                     }
                 }
@@ -397,6 +396,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 for (stat, value) in &self.meters.data {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }
+                output.pop();
                 output = output + "}";
             }
         }
