@@ -130,6 +130,21 @@ impl<T: Hash + Eq + Send + Clone> Sender<T> {
         }
         Ok(())
     }
+
+    #[inline]
+    /// a function to try to send a `Sample` to the `Receiver`
+    pub fn try_send(&mut self, sample: Sample<T>) -> Result<(), ()> {
+        self.buffer.push(sample);
+        if self.buffer.len() >= self.batch_size {
+            if self.queue.try_send(self.buffer.clone()).is_ok() {
+                self.buffer.clear();
+                return Ok(());
+            } else {
+                return Err(());
+            }
+        }
+        Ok(())
+    }
 }
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
