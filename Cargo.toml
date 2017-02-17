@@ -1,6 +1,6 @@
 [package]
 name = "tic"
-version = "0.1.3"
+version = "0.1.4-pre"
 authors = ["Brian Martin <brayniac@gmail.com>"]
 
 license = "MIT OR Apache-2.0"
