@@ -20,13 +20,15 @@ include = [ "src/**/*", "README.md", "LICENSE-*", "Cargo.toml" ]
 [dependencies]
 bytes = "0.3.0"
 clocksource = "0.2.0"
-heatmap = "0.6.2"
-histogram = "0.6.3"
+heatmap = "0.6.3"
+histogram = "0.6.4"
 log = "0.3.6"
-mio = "0.6.0"
+mio = "0.6.4"
+mpmc = "0.1.2"
 shuteye = "0.2.0"
-tiny_http = "0.5.2"
-waterfall = "0.6.3"
+tiny_http = "0.5.8"
+waterfall = "0.6.4"
+
 
 [features]
 asm = [ "clocksource/asm" ]

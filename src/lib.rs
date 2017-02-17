@@ -36,6 +36,7 @@ extern crate log;
 extern crate bytes;
 extern crate clocksource;
 extern crate mio;
+extern crate mpmc;
 extern crate heatmap;
 extern crate histogram;
 extern crate waterfall;

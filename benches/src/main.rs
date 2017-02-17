@@ -138,10 +138,11 @@ fn main() {
     set_log_level(1);
     info!("tic benchmark");
 
-    let windows = matches.opt_str("windows").unwrap_or("60".to_owned()).parse().unwrap();
-    let duration = matches.opt_str("duration").unwrap_or("1".to_owned()).parse().unwrap();
-    let capacity = matches.opt_str("capacity").unwrap_or("10000".to_owned()).parse().unwrap();
-    let batch = matches.opt_str("batch").unwrap_or("1".to_owned()).parse().unwrap();
+    let windows = matches.opt_str("windows").unwrap_or_else(|| "60".to_owned()).parse().unwrap();
+    let duration = matches.opt_str("duration").unwrap_or_else(|| "1".to_owned()).parse().unwrap();
+    let capacity = matches.opt_str("capacity").unwrap_or_else(|| "10000".to_owned()).parse().unwrap();
+    let batch = matches.opt_str("batch").unwrap_or_else(|| "1".to_owned()).parse().unwrap();
+    let producers = matches.opt_str("producers").unwrap_or_else(|| "1".to_owned()).parse().unwrap();
 
     // initialize a Receiver for the benchmark
     let mut receiver = Receiver::configure()
@@ -159,7 +160,7 @@ fn main() {
     let sender = receiver.get_sender();
     let clocksource = receiver.get_clocksource();
 
-    let producers = matches.opt_str("producers").unwrap_or("1".to_owned()).parse().unwrap();
+    
 
     info!("producers: {}", producers);
 
