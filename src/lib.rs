@@ -24,8 +24,8 @@
 //!
 //! # Usage
 //!
-//! The pattern is to create a Receiver, aquire a Sender from the Receiver, and
-//! send `Sample`s along the sender
+//! The pattern is to create a `Receiver`, acquire a `Sender` from the
+//! `Receiver`, and send `Sample`s to the `Sender`
 //!
 //! # Example
 //!
@@ -49,9 +49,11 @@ mod histograms;
 mod heatmaps;
 mod receiver;
 mod sample;
+mod sender;
 
 pub use config::Config;
-pub use receiver::{Interest, Receiver, Sender, Percentile};
+pub use receiver::{Interest, Receiver, Percentile};
+pub use sender::Sender;
 pub use sample::Sample;
 pub use meters::Meters;
 

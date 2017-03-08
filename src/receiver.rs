@@ -19,6 +19,7 @@ use meters::Meters;
 use heatmaps::Heatmaps;
 use histograms::Histograms;
 use sample::Sample;
+use sender::Sender;
 
 const TOKEN_HTTP: Token = Token(0);
 
@@ -34,47 +35,6 @@ pub enum Interest<T> {
 #[derive(Clone)]
 /// a Percentile is the label plus floating point percentile representation
 pub struct Percentile(pub String, pub f64);
-
-#[derive(Clone)]
-/// a Sender is used to push `Sample`s to the `Receiver` it is clonable for sharing between threads
-pub struct Sender<T> {
-    queue: Arc<Queue<Vec<Sample<T>>>>,
-    buffer: Vec<Sample<T>>,
-    batch_size: usize,
-}
-
-impl<T: Hash + Eq + Send + Clone> Sender<T> {
-    #[inline]
-    /// a function to send a `Sample` to the `Receiver`
-    pub fn send(&mut self, sample: Sample<T>) -> Result<(), ()> {
-        self.buffer.push(sample);
-        if self.buffer.len() >= self.batch_size {
-            if self.queue.push(self.buffer.clone()).is_ok() {
-                self.buffer.clear();
-                return Ok(());
-            } else {
-                return Err(());
-            }
-        }
-        Ok(())
-    }
-
-    /// a function to change the batch size of the `Sender`
-    pub fn set_batch_size(&mut self, batch_size: usize) {
-        self.batch_size = batch_size;
-    }
-
-    #[inline]
-    /// mock try_send `Sample` to the `Receiver`
-    pub fn try_send(&mut self, sample: Sample<T>) -> Result<(), (Sample<T>)> {
-        if self.buffer.len() < self.batch_size - 1 {
-            self.buffer.push(sample);
-            Ok(())
-        } else {
-            Err(sample)
-        }
-    }
-}
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
@@ -111,7 +71,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let slices = config.duration * config.windows;
 
         let listen = config.http_listen.clone();
-        let server = start_listener(listen);
+        let server = start_listener(&listen);
 
         let clocksource = Clocksource::default();
         let t0 = clocksource.time();
@@ -140,11 +100,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// returns a clone of the `Sender`
     pub fn get_sender(&self) -> Sender<T> {
-        Sender {
-            queue: self.queue.clone(),
-            buffer: Vec::new(),
-            batch_size: self.config.batch_size,
-        }
+        Sender::new(self.queue.clone(), self.config.batch_size)
     }
 
     /// returns a clone of the `Clocksource`
@@ -159,7 +115,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// run the receive loop for one window
     pub fn run_once(&mut self) {
-        trace!("tic::Reveiver::run_once()");
+        trace!("tic::Reveiver::run_once");
         let mut events = self.events.take().unwrap();
 
         let mut http_timer = Timer::default();
@@ -176,13 +132,14 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             self.poll.poll(&mut events, Some(Duration::from_millis(1))).unwrap();
             for event in events.iter() {
                 if event.token() == TOKEN_HTTP {
-                    trace!("serve http");
+                    trace!("tic::Reveiver::run_once try handle http");
                     http_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
                     self.try_handle_http(&self.server);
                 }
             }
 
             if !self.check_elapsed(t1) {
+                trace!("tic::Reveiver::run_once try handle queue");
                 for _ in 0..(self.config.capacity) {
                     if let Some(results) = self.queue.pop() {
                         for result in results {
@@ -344,8 +301,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 }
 
 // start the HTTP listener for tic
-fn start_listener(listen: Option<String>) -> Option<Server> {
-    if let Some(ref l) = listen {
+fn start_listener(listen: &Option<String>) -> Option<Server> {
+    if let Some(ref l) = *listen {
         let http_socket = l.to_socket_addrs().unwrap().next().unwrap();
 
         debug!("stats: starting HTTP listener");
