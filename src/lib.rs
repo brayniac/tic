@@ -44,6 +44,7 @@ extern crate shuteye;
 extern crate tiny_http;
 
 mod config;
+mod counters;
 mod meters;
 mod histograms;
 mod heatmaps;

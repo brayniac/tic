@@ -15,6 +15,7 @@ use mpmc::Queue;
 use tiny_http::{Server, Response, Request};
 
 use config::Config;
+use counters::Counters;
 use meters::Meters;
 use heatmaps::Heatmaps;
 use histograms::Histograms;
@@ -39,6 +40,7 @@ pub struct Percentile(pub String, pub f64);
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
     config: Config<T>,
+    counters: Counters<T>,
     queue: Arc<Queue<Vec<Sample<T>>>>,
     poll: Poll,
     histograms: Histograms<T>,
@@ -80,6 +82,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
         Receiver {
             config: config,
+            counters: Counters::new(),
             poll: poll,
             queue: queue,
             histograms: Histograms::new(),
@@ -111,6 +114,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     /// register a stat for export
     pub fn add_interest(&mut self, interest: Interest<T>) {
         self.interests.push(interest)
+    }
+
+    /// clear the heatmaps
+    pub fn clear_heatmaps(&mut self) {
+        self.heatmaps.clear();
     }
 
     /// run the receive loop for one window
@@ -146,6 +154,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             let t0 = self.clocksource.convert(result.start());
                             let t1 = self.clocksource.convert(result.stop());
                             let dt = t1 - t0;
+                            self.counters.increment(result.metric());
                             self.histograms.increment(result.metric(), dt as u64);
                             self.heatmaps.increment(result.metric(), t0 as u64, dt as u64);
                         }
@@ -166,7 +175,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             for interest in self.interests.clone() {
                 match interest {
                     Interest::Count(l) => {
-                        self.meters.set_count(l.clone(), self.heatmaps.metric_count(l));
+                        self.meters.set_count(l.clone(), self.counters.metric_count(l));
                     }
                     Interest::Percentile(l) => {
                         for percentile in self.percentiles.clone() {
@@ -184,7 +193,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 }
             }
 
-            self.meters.set_combined_count(self.heatmaps.total_count());
+            self.meters.set_combined_count(self.counters.total_count());
             for percentile in self.percentiles.clone() {
                 self.meters.set_combined_percentile(percentile.clone(),
                                                     self.histograms

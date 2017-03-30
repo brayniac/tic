@@ -29,13 +29,13 @@ The API documentation of this library can be found at
 
 ## Features
 
-tic is still work-in-progress - probably not ready for public consumption
+tic is still work-in-progress - probably not ready for general consumption
 
 * high throughput - millions of samples per second
 * latched histogram - for analyzing the full distribution of sample lengths
 * heatmaps - to generate distribution traces and waterfalls
 * meters - to expose readings for client usage
-* http metrics - simple metrics on http for scraping and monitoring
+* http metrics - simple metrics on http for scraping and monitoring, Prometheus compatible
 * generic - channel type is generic, and used to label the type of sample
 * flexible - per channel stats are accessible by registering appropriate `Interest`s
 
