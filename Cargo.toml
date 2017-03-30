@@ -33,7 +33,6 @@ tiny_http = "0.5.8"
 time = "0.1.36"
 waterfall = "0.6.4"
 
-
 [features]
 asm = [ "clocksource/asm" ]
 default = []
