@@ -20,17 +20,17 @@ include = [ "src/**/*", "README.md", "LICENSE-*", "Cargo.toml" ]
 [dependencies]
 bytes = "0.3.0"
 clocksource = "0.2.0"
-getopts = "*"
+getopts = "0.2.14"
 heatmap = "0.6.3"
 histogram = "0.6.4"
 log = "0.3.6"
 mio = "=0.6.4"
 mpmc = "0.1.2"
-pad = "*"
-rand = "*"
+pad = "0.1.4"
+rand = "0.3.15"
 shuteye = "0.2.0"
 tiny_http = "0.5.8"
-time = "*"
+time = "0.1.36"
 waterfall = "0.6.4"
 
 
