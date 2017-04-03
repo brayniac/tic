@@ -16,7 +16,7 @@ use getopts::Options;
 use std::env;
 use std::thread;
 
-use tic::{Clocksource, Interest, Receiver, Sample, Sender};
+use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
@@ -156,6 +156,7 @@ fn main() {
     receiver.add_interest(Interest::Waterfall(Metric::Ok, "ok_waterfall.png".to_owned()));
     receiver.add_interest(Interest::Trace(Metric::Ok, "ok_trace.txt".to_owned()));
     receiver.add_interest(Interest::Count(Metric::Ok));
+    receiver.add_interest(Interest::Percentile(Metric::Ok));
 
     let sender = receiver.get_sender();
     let clocksource = receiver.get_clocksource();
@@ -187,7 +188,17 @@ fn main() {
             total = *t;
         }
         let r = c as f64 / ((t1 - t0) as f64 / 1_000_000_000.0);
+
+        let p50 = match m.get_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0)) {
+            Some(p) => {
+                format!("{}", p)
+            },
+            None => {
+                "Err".to_owned()
+            }
+        };
         info!("rate: {} samples per second", r);
+        info!("latency (ns): p50: {}", p50);
     }
     info!("saving files...");
     receiver.save_files();

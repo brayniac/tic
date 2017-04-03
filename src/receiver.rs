@@ -1,16 +1,11 @@
 extern crate clocksource;
-extern crate mio;
-extern crate shuteye;
 
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
-use std::time::Duration;
 
 use clocksource::Clocksource;
-use mio::{Events, Poll, PollOpt, Ready, Token};
-use mio::timer::Timer;
 use mpmc::Queue;
 use tiny_http::{Server, Response, Request};
 
@@ -21,8 +16,6 @@ use heatmaps::Heatmaps;
 use histograms::Histograms;
 use sample::Sample;
 use sender::Sender;
-
-const TOKEN_HTTP: Token = Token(0);
 
 #[derive(Clone)]
 /// an Interest registers a metric for reporting
@@ -42,7 +35,6 @@ pub struct Receiver<T> {
     config: Config<T>,
     counters: Counters<T>,
     queue: Arc<Queue<Vec<Sample<T>>>>,
-    poll: Poll,
     histograms: Histograms<T>,
     meters: Meters<T>,
     interests: Vec<Interest<T>>,
@@ -50,7 +42,6 @@ pub struct Receiver<T> {
     heatmaps: Heatmaps<T>,
     server: Option<Server>,
     clocksource: Clocksource,
-    events: Option<Events>,
 }
 
 impl<T: Hash + Eq + Send + Clone + Display> Default for Receiver<T> {
@@ -78,12 +69,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let clocksource = Clocksource::default();
         let t0 = clocksource.time();
 
-        let poll = Poll::new().unwrap();
-
         Receiver {
             config: config,
             counters: Counters::new(),
-            poll: poll,
             queue: queue,
             histograms: Histograms::new(),
             meters: Meters::new(),
@@ -92,7 +80,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             heatmaps: Heatmaps::new(slices, t0),
             server: server,
             clocksource: clocksource,
-            events: Some(Events::with_capacity(128)),
         }
     }
 
@@ -123,27 +110,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// run the receive loop for one window
     pub fn run_once(&mut self) {
-        trace!("tic::Reveiver::run_once");
-        let mut events = self.events.take().unwrap();
-
-        let mut http_timer = Timer::default();
-
-        self.poll.register(&http_timer, TOKEN_HTTP, Ready::readable(), PollOpt::edge()).unwrap();
-        http_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
+        trace!("tic::Receiver::run_once");
 
         let duration = self.config.duration;
 
         let t0 = self.clocksource.counter();
         let t1 = t0 + (duration as f64 * self.clocksource.frequency()) as u64;
+        let mut t2 = t0 + (0.1 * self.clocksource.frequency()) as u64;
 
+        trace!("tic::Receiver polling");
         'outer: loop {
-            self.poll.poll(&mut events, Some(Duration::from_millis(1))).unwrap();
-            for event in events.iter() {
-                if event.token() == TOKEN_HTTP {
-                    trace!("tic::Reveiver::run_once try handle http");
-                    http_timer.set_timeout(Duration::from_millis(100), ()).unwrap();
-                    self.try_handle_http(&self.server);
-                }
+            if self.clocksource.counter() > t2 {
+                self.try_handle_http(&self.server);
+                t2 += (0.1 * self.clocksource.frequency()) as u64;
             }
 
             if !self.check_elapsed(t1) {
@@ -165,8 +144,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 break 'outer;
             }
         }
-
-        self.events = Some(events);
     }
 
     fn check_elapsed(&mut self, t1: u64) -> bool {
