@@ -30,7 +30,7 @@ rand = "0.3.15"
 shuteye = "0.2.0"
 tiny_http = "0.5.8"
 time = "0.1.36"
-waterfall = "0.6.5"
+waterfall = "0.6.6"
 
 [features]
 asm = [ "clocksource/asm" ]
