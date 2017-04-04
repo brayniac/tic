@@ -189,16 +189,14 @@ fn main() {
         }
         let r = c as f64 / ((t1 - t0) as f64 / 1_000_000_000.0);
 
-        let p50 = match m.get_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0)) {
-            Some(p) => {
-                format!("{}", p)
-            },
-            None => {
-                "Err".to_owned()
-            }
-        };
         info!("rate: {} samples per second", r);
-        info!("latency (ns): p50: {}", p50);
+        info!("latency (ns): p50: {} p90: {} p999: {} p9999: {} max: {}",
+            m.get_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0)).unwrap_or(&0),
+            m.get_percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0)).unwrap_or(&0),
+            m.get_percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9)).unwrap_or(&0),
+            m.get_percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99)).unwrap_or(&0),
+            m.get_percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0)).unwrap_or(&0));
+
     }
     info!("saving files...");
     receiver.save_files();

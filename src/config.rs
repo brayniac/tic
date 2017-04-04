@@ -4,6 +4,7 @@ extern crate histogram;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::time::Duration;
 
 use receiver::Receiver;
 
@@ -17,6 +18,7 @@ pub struct Config<T> {
     pub windows: usize,
     pub capacity: usize,
     pub batch_size: usize,
+    pub poll_delay: Option<Duration>,
     pub http_listen: Option<String>,
     pub trace_file: Option<String>,
     pub waterfall_file: Option<String>,
@@ -38,6 +40,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
             windows: 60,
             capacity: 256,
             batch_size: 512,
+            poll_delay: None,
             http_listen: None,
             trace_file: None,
             waterfall_file: None,
@@ -150,6 +153,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// ```
     pub fn waterfall_file(mut self, path: String) -> Self {
         self.waterfall_file = Some(path);
+        self
+    }
+
+    /// set the poll delay
+    ///
+    /// # Example
+    /// ```
+    /// # use tic::Receiver;
+    /// # use std::time::Duration;
+    /// let mut c = Receiver::<usize>::configure();
+    /// c.poll_delay(Some(Duration::new(0, 100_000)));
+    pub fn poll_delay(mut self, delay: Option<Duration>) -> Self {
+        self.poll_delay = delay;
         self
     }
 

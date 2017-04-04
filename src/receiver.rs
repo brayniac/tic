@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use clocksource::Clocksource;
 use mpmc::Queue;
+use shuteye;
 use tiny_http::{Server, Response, Request};
 
 use config::Config;
@@ -127,7 +128,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
             if !self.check_elapsed(t1) {
                 trace!("tic::Reveiver::run_once try handle queue");
-                for _ in 0..(self.config.capacity) {
+                let mut i = 0;
+                'inner: loop {
+                    if i < self.config.capacity {
+                        i += 1;
+                    } else {
+                        break 'inner;
+                    }
                     if let Some(results) = self.queue.pop() {
                         for result in results {
                             let t0 = self.clocksource.convert(result.start());
@@ -137,11 +144,17 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             self.histograms.increment(result.metric(), dt as u64);
                             self.heatmaps.increment(result.metric(), t0 as u64, dt as u64);
                         }
+                    } else {
+                        break 'inner;
                     }
                 }
             } else {
                 trace!("tic::Receiver::run_once complete");
                 break 'outer;
+            }
+
+            if self.config.poll_delay.is_some() {
+                shuteye::sleep(self.config.poll_delay.unwrap());
             }
         }
     }
