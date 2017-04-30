@@ -204,7 +204,7 @@ fn main() {
         let t1 = clocksource.time();
         let m = receiver.clone_meters();
         let mut c = 0;
-        if let Some(t) = m.get_combined_count() {
+        if let Some(t) = m.count(&Metric::Ok) {
             c = *t - total;
             total = *t;
         }
@@ -212,15 +212,15 @@ fn main() {
 
         info!("rate: {} samples per second", r);
         info!("latency (ns): p50: {} p90: {} p999: {} p9999: {} max: {}",
-              m.get_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
+              m.percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
                   .unwrap_or(&0),
-              m.get_percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
+              m.percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
                   .unwrap_or(&0),
-              m.get_percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
+              m.percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
                   .unwrap_or(&0),
-              m.get_percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
+              m.percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
                   .unwrap_or(&0),
-              m.get_percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
+              m.percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
                   .unwrap_or(&0));
 
     }

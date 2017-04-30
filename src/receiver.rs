@@ -115,6 +115,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// register a stat for export
     pub fn add_interest(&mut self, interest: Interest<T>) {
+        match interest.clone() {
+            Interest::Count(l) => {
+                self.counters.init(l);
+            }
+            Interest::Percentile(l) => {
+                self.histograms.init(l);
+            }
+            Interest::Trace(l, _) |
+            Interest::Waterfall(l, _) => {
+                self.heatmaps.init(l);
+            }
+        }
         self.interests.push(interest)
     }
 
@@ -179,7 +191,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 match interest {
                     Interest::Count(l) => {
                         self.meters
-                            .set_count(l.clone(), self.counters.metric_count(l));
+                            .set_count(l.clone(), self.counters.count(l));
                     }
                     Interest::Percentile(l) => {
                         for percentile in self.percentiles.clone() {
@@ -188,23 +200,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                                 .set_percentile(v.clone(),
                                                 percentile.clone(),
                                                 self.histograms
-                                                    .metric_percentile(v, percentile.1)
+                                                    .percentile(v, percentile.1)
                                                     .unwrap_or(0));
                         }
                     }
                     Interest::Trace(_, _) |
                     Interest::Waterfall(_, _) => {}
                 }
-            }
-
-            self.meters
-                .set_combined_count(self.counters.total_count());
-            for percentile in self.percentiles.clone() {
-                self.meters
-                    .set_combined_percentile(percentile.clone(),
-                                             self.histograms
-                                                 .total_percentile(percentile.1)
-                                                 .unwrap_or(0));
             }
 
             self.histograms.clear();
@@ -245,31 +247,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 Interest::Count(_) |
                 Interest::Percentile(_) => {}
                 Interest::Trace(l, f) => {
-                    self.heatmaps.metric_trace(l, f);
+                    self.heatmaps.trace(l, f);
                 }
                 Interest::Waterfall(l, f) => {
-                    self.heatmaps.metric_waterfall(l, f);
+                    self.heatmaps.waterfall(l, f);
                 }
             }
-        }
-
-        self.save_trace();
-        self.save_waterfall();
-    }
-
-    /// save a heatmap trace file for total heatmap
-    pub fn save_trace(&mut self) {
-        if let Some(file) = self.config.trace_file.clone() {
-            debug!("saving trace file");
-            self.heatmaps.total_trace(file);
-        }
-    }
-
-    /// save a waterfall png for the total heatmap
-    pub fn save_waterfall(&mut self) {
-        if let Some(file) = self.config.waterfall_file.clone() {
-            debug!("stats: saving waterfall render");
-            self.heatmaps.total_waterfall(file);
         }
     }
 
@@ -292,13 +275,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let mut output = "".to_owned();
 
         match request.url() {
-            "/histogram" => {
-                for bucket in &self.histograms.total {
-                    if bucket.count() > 0 {
-                        output = output + &format!("{} {}\n", bucket.value(), bucket.count());
-                    }
-                }
-            }
             "/vars" | "/metrics" => {
                 for (stat, value) in &self.meters.combined {
                     output = output + &format!("{} {}\n", stat, value);

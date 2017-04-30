@@ -34,38 +34,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Meters<T> {
         self.data.insert(key, value);
     }
 
-    pub fn set_combined_count(&mut self, value: u64) {
-        let key = "count".to_owned();
-        self.combined.insert(key, value);
-    }
-
     pub fn set_percentile(&mut self, channel: T, percentile: Percentile, value: u64) {
         let key = format!("{}_{}_nanoseconds", channel, percentile.0);
         self.data.insert(key, value);
     }
 
-    pub fn set_combined_percentile(&mut self, percentile: Percentile, value: u64) {
-        let key = format!("{}_nanoseconds", percentile.0);
-        self.combined.insert(key, value);
-    }
-
-    pub fn get_count(&self, channel: &T) -> Option<&u64> {
+    pub fn count(&self, channel: &T) -> Option<&u64> {
         let key = format!("{}_count", channel);
         self.data.get(&key)
     }
 
-    pub fn get_combined_count(&self) -> Option<&u64> {
-        let key = "count".to_owned();
-        self.combined.get(&key)
-    }
-
-    pub fn get_percentile(&self, channel: &T, percentile: Percentile) -> Option<&u64> {
+    pub fn percentile(&self, channel: &T, percentile: Percentile) -> Option<&u64> {
         let key = format!("{}_{}_nanoseconds", channel, percentile.0);
         self.data.get(&key)
-    }
-
-    pub fn get_combined_percentile(&self, percentile: Percentile) -> Option<&u64> {
-        let key = format!("{}_nanoseconds", percentile.0);
-        self.combined.get(&key)
     }
 }
