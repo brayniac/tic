@@ -14,17 +14,18 @@ use histogram::Histogram;
 /// a configuration struct for customizing `Receiver`
 #[derive(Clone)]
 pub struct Config<T> {
+    resource_type: PhantomData<T>,
     pub duration: usize,
     pub windows: usize,
     pub capacity: usize,
     pub batch_size: usize,
+    pub service_mode: bool,
     pub poll_delay: Option<Duration>,
     pub http_listen: Option<String>,
     pub trace_file: Option<String>,
     pub waterfall_file: Option<String>,
     pub heatmap_config: heatmap::Config,
     pub histogram_config: histogram::Config,
-    resource_type: PhantomData<T>,
 }
 
 impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
@@ -36,17 +37,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
             .max_value(60 * 1_000_000_000)
             .precision(4);
         Config {
+            resource_type: PhantomData::<T>,
             duration: 60,
             windows: 60,
             capacity: 256,
             batch_size: 512,
+            service_mode: false,
             poll_delay: None,
             http_listen: None,
             trace_file: None,
             waterfall_file: None,
             heatmap_config: heatmap_config,
             histogram_config: histogram_config,
-            resource_type: PhantomData::<T>,
         }
     }
 }
@@ -73,7 +75,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// ```
     pub fn duration(mut self, duration: usize) -> Self {
         self.duration = duration;
-        self.heatmap_config.num_slices(self.duration * self.windows);
+        self.heatmap_config
+            .num_slices(self.duration * self.windows);
         self
     }
 
@@ -87,7 +90,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// ```
     pub fn windows(mut self, windows: usize) -> Self {
         self.windows = windows;
-        self.heatmap_config.num_slices(self.duration * self.windows);
+        self.heatmap_config
+            .num_slices(self.duration * self.windows);
         self
     }
 
@@ -166,6 +170,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// c.poll_delay(Some(Duration::new(0, 100_000)));
     pub fn poll_delay(mut self, delay: Option<Duration>) -> Self {
         self.poll_delay = delay;
+        self
+    }
+
+    /// set receiver to continuous run mode aka service mode
+    ///
+    /// # Example
+    /// ```
+    /// # use tic::Receiver;
+    /// let mut c = Receiver::<usize>::configure();
+    /// c.service(true);
+    pub fn service(mut self, enabled: bool) -> Self {
+        self.service_mode = enabled;
         self
     }
 

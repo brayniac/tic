@@ -4,3 +4,4 @@ benches/*.png
 benches/*.txt
 ok_waterfall.png
 ok_trace.txt
+*.bk

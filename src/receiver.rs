@@ -33,6 +33,10 @@ pub struct Percentile(pub String, pub f64);
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
+    window_time: u64,
+    window_duration: u64,
+    end_time: u64,
+    run_duration: u64,
     config: Config<T>,
     counters: Counters<T>,
     queue: Arc<Queue<Vec<Sample<T>>>>,
@@ -68,9 +72,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let server = start_listener(&listen);
 
         let clocksource = Clocksource::default();
-        let t0 = clocksource.time();
+
+        // calculate counter values for start, window, and end times
+        let start_time = clocksource.counter();
+        let window_duration = (config.duration as f64 * clocksource.frequency()) as u64;
+        let window_time = start_time + window_duration;
+        let run_duration = config.windows as u64 * window_duration;
+        let end_time = start_time + run_duration;
 
         Receiver {
+            window_duration: window_duration,
+            window_time: window_time,
+            run_duration: run_duration,
+            end_time: end_time,
             config: config,
             counters: Counters::new(),
             queue: queue,
@@ -78,7 +92,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             meters: Meters::new(),
             interests: Vec::new(),
             percentiles: default_percentiles(),
-            heatmaps: Heatmaps::new(slices, t0),
+            heatmaps: Heatmaps::new(slices, start_time),
             server: server,
             clocksource: clocksource,
         }
@@ -113,20 +127,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn run_once(&mut self) {
         trace!("tic::Receiver::run_once");
 
-        let duration = self.config.duration;
-
-        let t0 = self.clocksource.counter();
-        let t1 = t0 + (duration as f64 * self.clocksource.frequency()) as u64;
-        let mut t2 = t0 + (0.1 * self.clocksource.frequency()) as u64;
+        let window_time = self.window_time;
+        let mut http_time = self.clocksource.counter() +
+                            (0.1 * self.clocksource.frequency()) as u64;
 
         trace!("tic::Receiver polling");
         'outer: loop {
-            if self.clocksource.counter() > t2 {
+            if self.clocksource.counter() > http_time {
                 self.try_handle_http(&self.server);
-                t2 += (0.1 * self.clocksource.frequency()) as u64;
+                http_time += (0.1 * self.clocksource.frequency()) as u64;
             }
 
-            if !self.check_elapsed(t1) {
+            if !self.check_elapsed(window_time) {
                 trace!("tic::Reveiver::run_once try handle queue");
                 let mut i = 0;
                 'inner: loop {
@@ -142,7 +154,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             let dt = t1 - t0;
                             self.counters.increment(result.metric());
                             self.histograms.increment(result.metric(), dt as u64);
-                            self.heatmaps.increment(result.metric(), t0 as u64, dt as u64);
+                            self.heatmaps
+                                .increment(result.metric(), t0 as u64, dt as u64);
                         }
                     } else {
                         break 'inner;
@@ -165,7 +178,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             for interest in self.interests.clone() {
                 match interest {
                     Interest::Count(l) => {
-                        self.meters.set_count(l.clone(), self.counters.metric_count(l));
+                        self.meters
+                            .set_count(l.clone(), self.counters.metric_count(l));
                     }
                     Interest::Percentile(l) => {
                         for percentile in self.percentiles.clone() {
@@ -183,15 +197,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 }
             }
 
-            self.meters.set_combined_count(self.counters.total_count());
+            self.meters
+                .set_combined_count(self.counters.total_count());
             for percentile in self.percentiles.clone() {
-                self.meters.set_combined_percentile(percentile.clone(),
-                                                    self.histograms
-                                                        .total_percentile(percentile.1)
-                                                        .unwrap_or(0));
+                self.meters
+                    .set_combined_percentile(percentile.clone(),
+                                             self.histograms
+                                                 .total_percentile(percentile.1)
+                                                 .unwrap_or(0));
             }
 
             self.histograms.clear();
+            self.window_time += self.window_duration;
             return true;
         }
         false
@@ -201,15 +218,24 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn run(&mut self) {
         let mut window = 0;
         debug!("collection ready");
-        loop {
-            self.run_once();
-            window += 1;
-            if window >= self.config.windows {
-                break;
+        'outer: loop {
+            'inner: loop {
+                self.run_once();
+                window += 1;
+                if window >= self.config.windows {
+                    break 'inner;
+                }
+            }
+
+            self.save_files();
+
+            if !self.config.service_mode {
+                break 'outer;
+            } else {
+                self.heatmaps.clear();
+                self.end_time += self.run_duration;
             }
         }
-
-        self.save_files();
     }
 
     /// save all artifacts

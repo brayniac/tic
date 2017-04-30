@@ -5,17 +5,17 @@ authors = ["Brian Martin <brayniac@gmail.com>"]
 
 license = "MIT OR Apache-2.0"
 
-description = "[WIP] stats library"
+description = "a high-performance stats library focused on rates and latencies from timestamped events"
 
 homepage = "https://github.com/brayniac/tic"
-documentation = "https://brayniac.github.io/tic"
+documentation = "https://docs.rs/tic"
 repository = "https://github.com/brayniac/tic"
 
 readme = "README.md"
 
 keywords = [ "stats", "metrics", "telemetry", "interval" ]
 
-include = [ "src/**/*", "README.md", "LICENSE-*", "Cargo.toml" ]
+exclude = [ "scripts" ]
 
 [dependencies]
 bytes = "0.3.0"

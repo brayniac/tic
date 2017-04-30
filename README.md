@@ -1,8 +1,5 @@
-# tic - [WIP] time interval counter with stats
-
-tic is a specialized stats library, with a focus on deriving statistics from timestamped events
-
-Features will include:
+# tic - time interval counts and statistics
+a high-performance stats library focused on rates and latencies from timestamped events
 
 [![Build Status](https://travis-ci.org/brayniac/tic.svg?branch=master)](https://travis-ci.org/brayniac/tic)
 [![crates.io](http://meritbadge.herokuapp.com/tic)](https://crates.io/crates/tic)
@@ -11,25 +8,19 @@ Features will include:
 
 ## Usage
 
-To use `tic`, first add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-tic = "*"
-```
-
-Then, add this to your crate root:
-
-```rust
-extern crate tic;
-```
-
 The API documentation of this library can be found at
-[brayniac.github.io/tic](https://brayniac.github.io/tic/)
+[docs.rs/tic](https://docs.rs/tic/)
+
+## Performance and Example
+
+Performance is a top-priority. To test performance, we use tic to benchmark itself.
+
+```shell
+cargo run --release --example benchmark -- --help
+cargo run --release --example benchmark
+```
 
 ## Features
-
-tic is still work-in-progress - probably not ready for general consumption
 
 * high throughput - millions of samples per second
 * latched histogram - for analyzing the full distribution of sample lengths

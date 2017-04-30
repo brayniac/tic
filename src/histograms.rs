@@ -1,4 +1,5 @@
-// histograms is a map of histogram, keyed by status
+// `Histograms` is a map of `Histogram`, keyed by metric
+
 extern crate histogram;
 
 use histogram::Histogram;

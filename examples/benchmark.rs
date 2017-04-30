@@ -93,9 +93,9 @@ fn set_log_level(level: usize) {
         }
     }
     let _ = log::set_logger(|max_log_level| {
-        max_log_level.set(log_filter);
-        Box::new(SimpleLogger)
-    });
+                                max_log_level.set(log_filter);
+                                Box::new(SimpleLogger)
+                            });
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -110,7 +110,10 @@ pub fn opts() -> Options {
     opts.optopt("w", "windows", "number of integration windows", "INTEGER");
     opts.optopt("d", "duration", "length of integration window", "INTEGER");
     opts.optopt("c", "capacity", "size of the mpmc queue", "INTEGER");
-    opts.optopt("b", "batch", "batch size of producer writes to queue", "INTEGER");
+    opts.optopt("b",
+                "batch",
+                "batch size of producer writes to queue",
+                "INTEGER");
     opts.optflag("h", "help", "print this help menu");
 
     opts
@@ -138,11 +141,31 @@ fn main() {
     set_log_level(1);
     info!("tic benchmark");
 
-    let windows = matches.opt_str("windows").unwrap_or_else(|| "60".to_owned()).parse().unwrap();
-    let duration = matches.opt_str("duration").unwrap_or_else(|| "1".to_owned()).parse().unwrap();
-    let capacity = matches.opt_str("capacity").unwrap_or_else(|| "10000".to_owned()).parse().unwrap();
-    let batch = matches.opt_str("batch").unwrap_or_else(|| "1".to_owned()).parse().unwrap();
-    let producers = matches.opt_str("producers").unwrap_or_else(|| "1".to_owned()).parse().unwrap();
+    let windows = matches
+        .opt_str("windows")
+        .unwrap_or_else(|| "60".to_owned())
+        .parse()
+        .unwrap();
+    let duration = matches
+        .opt_str("duration")
+        .unwrap_or_else(|| "1".to_owned())
+        .parse()
+        .unwrap();
+    let capacity = matches
+        .opt_str("capacity")
+        .unwrap_or_else(|| "10000".to_owned())
+        .parse()
+        .unwrap();
+    let batch = matches
+        .opt_str("batch")
+        .unwrap_or_else(|| "1".to_owned())
+        .parse()
+        .unwrap();
+    let producers = matches
+        .opt_str("producers")
+        .unwrap_or_else(|| "1".to_owned())
+        .parse()
+        .unwrap();
 
     // initialize a Receiver for the benchmark
     let mut receiver = Receiver::configure()
@@ -161,16 +184,14 @@ fn main() {
     let sender = receiver.get_sender();
     let clocksource = receiver.get_clocksource();
 
-    
+
 
     info!("producers: {}", producers);
 
     for _ in 0..producers {
         let s = sender.clone();
         let c = clocksource.clone();
-        thread::spawn(move || {
-            Generator::new(s, c).run();
-        });
+        thread::spawn(move || { Generator::new(s, c).run(); });
     }
 
     let mut total = 0;
@@ -191,11 +212,16 @@ fn main() {
 
         info!("rate: {} samples per second", r);
         info!("latency (ns): p50: {} p90: {} p999: {} p9999: {} max: {}",
-            m.get_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0)).unwrap_or(&0),
-            m.get_percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0)).unwrap_or(&0),
-            m.get_percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9)).unwrap_or(&0),
-            m.get_percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99)).unwrap_or(&0),
-            m.get_percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0)).unwrap_or(&0));
+              m.get_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
+                  .unwrap_or(&0),
+              m.get_percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
+                  .unwrap_or(&0),
+              m.get_percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
+                  .unwrap_or(&0),
+              m.get_percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
+                  .unwrap_or(&0),
+              m.get_percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
+                  .unwrap_or(&0));
 
     }
     info!("saving files...");

@@ -11,4 +11,3 @@ matrix:
     - os: linux
       rust: nightly
       script: cargo build --features asm
-
