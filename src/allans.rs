@@ -1,12 +1,12 @@
 // `Allans` is a map for calculating ADEV and AVAR, keyed by metric
 
 use allan::{Allan, Config, Style};
-use std::collections::HashMap;
+use fnv::FnvHashMap;
 use std::hash::Hash;
 
 pub struct Allans<T> {
     config: Config,
-    data: HashMap<T, Allan>,
+    data: FnvHashMap<T, Allan>,
 }
 
 impl<T: Hash + Eq> Allans<T> {
@@ -14,7 +14,7 @@ impl<T: Hash + Eq> Allans<T> {
         let config = Allan::configure().style(Style::AllTau).max_tau(3600);
         Allans {
             config: config,
-            data: HashMap::new(),
+            data: FnvHashMap::default(),
         }
     }
 

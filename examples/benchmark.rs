@@ -175,9 +175,9 @@ fn main() {
     let sender = receiver.get_sender();
     let clocksource = receiver.get_clocksource();
 
-
-
     info!("producers: {}", producers);
+    info!("batch size: {}", batch);
+    info!("capacity: {}", capacity);
 
     for _ in 0..producers {
         let s = sender.clone();

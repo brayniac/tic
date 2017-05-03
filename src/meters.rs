@@ -1,7 +1,7 @@
 // `Meters` hold calculated values
 
+use fnv::FnvHashMap;
 use receiver::Percentile;
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -9,15 +9,15 @@ use std::marker::PhantomData;
 #[derive(Clone)]
 pub struct Meters<T> {
     resource_type: PhantomData<T>,
-    pub data: HashMap<String, u64>,
-    pub data_float: HashMap<String, f64>,
+    pub data: FnvHashMap<String, u64>,
+    pub data_float: FnvHashMap<String, f64>,
 }
 
 impl<T: Hash + Eq> Default for Meters<T> {
     fn default() -> Meters<T> {
         Meters {
-            data: HashMap::new(),
-            data_float: HashMap::new(),
+            data: FnvHashMap::default(),
+            data_float: FnvHashMap::default(),
             resource_type: PhantomData::<T>,
         }
     }

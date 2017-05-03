@@ -2,8 +2,8 @@
 
 extern crate histogram;
 
+use fnv::FnvHashMap;
 use histogram::Histogram;
-use std::collections::HashMap;
 use std::hash::Hash;
 
 const ONE_SECOND: u64 = 1_000_000_000;
@@ -11,14 +11,14 @@ const ONE_MINUTE: u64 = 60 * ONE_SECOND;
 
 pub struct Histograms<T> {
     config: histogram::Config,
-    pub data: HashMap<T, Histogram>,
+    pub data: FnvHashMap<T, Histogram>,
 }
 
 impl<T: Hash + Eq> Default for Histograms<T> {
     fn default() -> Histograms<T> {
         Histograms {
             config: Histogram::configure().max_value(ONE_MINUTE),
-            data: HashMap::new(),
+            data: FnvHashMap::default(),
         }
     }
 }

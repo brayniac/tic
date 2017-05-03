@@ -3,14 +3,14 @@
 extern crate heatmap;
 extern crate waterfall;
 
+use fnv::FnvHashMap;
 use heatmap::Heatmap;
-use std::collections::HashMap;
 use std::hash::Hash;
 use waterfall::Waterfall;
 
 pub struct Heatmaps<T> {
     config: heatmap::Config,
-    pub data: HashMap<T, Heatmap>,
+    pub data: FnvHashMap<T, Heatmap>,
 }
 
 impl<T: Hash + Eq> Heatmaps<T> {
@@ -22,7 +22,7 @@ impl<T: Hash + Eq> Heatmaps<T> {
             .start(t0);
         Heatmaps {
             config: config,
-            data: HashMap::new(),
+            data: FnvHashMap::default(),
         }
     }
 
