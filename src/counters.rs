@@ -4,14 +4,12 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 pub struct Counters<T> {
-    data: HashMap<T, u64>
+    data: HashMap<T, u64>,
 }
 
 impl<T: Hash + Eq> Counters<T> {
     pub fn new() -> Counters<T> {
-        Counters {
-            data: HashMap::new()
-        }
+        Counters { data: HashMap::new() }
     }
 
     pub fn init(&mut self, key: T) {

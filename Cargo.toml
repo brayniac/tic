@@ -18,6 +18,7 @@ keywords = [ "stats", "metrics", "telemetry", "interval" ]
 exclude = [ "scripts" ]
 
 [dependencies]
+allan = "0.2.1"
 bytes = "0.3.0"
 clocksource = "0.2.0"
 getopts = "0.2.14"

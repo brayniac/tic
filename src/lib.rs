@@ -80,6 +80,7 @@
 
 #[macro_use]
 extern crate log;
+extern crate allan;
 extern crate bytes;
 extern crate clocksource;
 extern crate mpmc;
@@ -89,6 +90,7 @@ extern crate waterfall;
 extern crate shuteye;
 extern crate tiny_http;
 
+mod allans;
 mod config;
 mod counters;
 mod meters;

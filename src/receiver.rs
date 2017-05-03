@@ -10,6 +10,7 @@ use mpmc::Queue;
 use shuteye;
 use tiny_http::{Server, Response, Request};
 
+use allans::Allans;
 use config::Config;
 use counters::Counters;
 use meters::Meters;
@@ -21,6 +22,7 @@ use sender::Sender;
 #[derive(Clone)]
 /// an Interest registers a metric for reporting
 pub enum Interest<T> {
+    AllanDeviation(T),
     Count(T),
     Percentile(T),
     Trace(T, String),
@@ -38,11 +40,13 @@ pub struct Receiver<T> {
     end_time: u64,
     run_duration: u64,
     config: Config<T>,
-    counters: Counters<T>,
     queue: Arc<Queue<Vec<Sample<T>>>>,
+    allans: Allans<T>,
+    counters: Counters<T>,
     histograms: Histograms<T>,
     meters: Meters<T>,
     interests: Vec<Interest<T>>,
+    taus: Vec<usize>,
     percentiles: Vec<Percentile>,
     heatmaps: Heatmaps<T>,
     server: Option<Server>,
@@ -86,11 +90,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             run_duration: run_duration,
             end_time: end_time,
             config: config,
-            counters: Counters::new(),
             queue: queue,
+            allans: Allans::new(),
+            counters: Counters::new(),
             histograms: Histograms::new(),
             meters: Meters::new(),
             interests: Vec::new(),
+            taus: default_taus(),
             percentiles: default_percentiles(),
             heatmaps: Heatmaps::new(slices, start_time),
             server: server,
@@ -116,6 +122,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     /// register a stat for export
     pub fn add_interest(&mut self, interest: Interest<T>) {
         match interest.clone() {
+            Interest::AllanDeviation(l) => {
+                self.allans.init(l);
+            }
             Interest::Count(l) => {
                 self.counters.init(l);
             }
@@ -164,6 +173,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             let t0 = self.clocksource.convert(result.start());
                             let t1 = self.clocksource.convert(result.stop());
                             let dt = t1 - t0;
+                            self.allans.record(result.metric(), dt);
                             self.counters.increment(result.metric());
                             self.histograms.increment(result.metric(), dt as u64);
                             self.heatmaps
@@ -190,8 +200,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             for interest in self.interests.clone() {
                 match interest {
                     Interest::Count(l) => {
-                        self.meters
-                            .set_count(l.clone(), self.counters.count(l));
+                        self.meters.set_count(l.clone(), self.counters.count(l));
                     }
                     Interest::Percentile(l) => {
                         for percentile in self.percentiles.clone() {
@@ -202,6 +211,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                                                 self.histograms
                                                     .percentile(v, percentile.1)
                                                     .unwrap_or(0));
+                        }
+                    }
+                    Interest::AllanDeviation(key) => {
+                        for tau in self.taus.clone() {
+                            if let Some(adev) = self.allans.adev(key.clone(), tau) {
+                                self.meters.set_adev(key.clone(), tau.clone(), adev);
+                            }
                         }
                     }
                     Interest::Trace(_, _) |
@@ -244,6 +260,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn save_files(&mut self) {
         for interest in self.interests.clone() {
             match interest {
+                Interest::AllanDeviation(_) |
                 Interest::Count(_) |
                 Interest::Percentile(_) => {}
                 Interest::Trace(l, f) => {
@@ -276,19 +293,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
         match request.url() {
             "/vars" | "/metrics" => {
-                for (stat, value) in &self.meters.combined {
+                for (stat, value) in &self.meters.data {
                     output = output + &format!("{} {}\n", stat, value);
                 }
-                for (stat, value) in &self.meters.data {
+                for (stat, value) in &self.meters.data_float {
                     output = output + &format!("{} {}\n", stat, value);
                 }
             }
             _ => {
                 output = output + "{";
-                for (stat, value) in &self.meters.combined {
+                for (stat, value) in &self.meters.data {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }
-                for (stat, value) in &self.meters.data {
+                for (stat, value) in &self.meters.data_float {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }
                 output.pop();
@@ -325,4 +342,19 @@ fn default_percentiles() -> Vec<Percentile> {
     p.push(Percentile("p9999".to_owned(), 99.99));
     p.push(Percentile("max".to_owned(), 100.0));
     p
+}
+
+// helper function to populate the default `Taus`s to report
+fn default_taus() -> Vec<usize> {
+    let mut t = Vec::new();
+    for i in 1..10 {
+        t.push(i);
+    }
+    for i in 1..10 {
+        t.push(i * 10);
+    }
+    for i in 1..11 {
+        t.push(i * 100);
+    }
+    t
 }
