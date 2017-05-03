@@ -8,9 +8,7 @@ use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 extern crate tic;
 extern crate getopts;
 extern crate time;
-extern crate pad;
 
-use pad::{PadStr, Alignment};
 use std::fmt;
 use getopts::Options;
 use std::env;
@@ -34,7 +32,6 @@ impl fmt::Display for Metric {
 
 struct Generator {
     stats: Sender<Metric>,
-    t0: Option<u64>,
     clocksource: Clocksource,
 }
 
@@ -42,7 +39,6 @@ impl Generator {
     fn new(stats: Sender<Metric>, clocksource: Clocksource) -> Generator {
         Generator {
             stats: stats,
-            t0: None,
             clocksource: clocksource,
         }
     }
@@ -53,10 +49,9 @@ impl Generator {
             let t = time::precise_time_ns();
             if t > t1 {
                 let t2 = self.clocksource.time();
-                self.stats.send(Sample::new(t, t2, Metric::Ok));
+                self.stats.send(Sample::new(t, t2, Metric::Ok)).unwrap();
                 t1 += 1_000_000_000;
             }
-            let t1 = self.clocksource.counter();
         }
     }
 }
@@ -98,7 +93,7 @@ fn set_log_level(level: usize) {
                             });
 }
 
-fn print_usage(program: &str, opts: Options) {
+fn print_usage(program: &str, opts: &Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
 }
@@ -128,7 +123,7 @@ fn main() {
     };
 
     if matches.opt_present("help") {
-        print_usage(program, opts);
+        print_usage(program, &opts);
         return;
     }
     set_log_level(1);

@@ -98,7 +98,7 @@ fn set_log_level(level: usize) {
                             });
 }
 
-fn print_usage(program: &str, opts: Options) {
+fn print_usage(program: &str, opts: &Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
 }
@@ -135,7 +135,7 @@ fn main() {
     };
 
     if matches.opt_present("help") {
-        print_usage(program, opts);
+        print_usage(program, &opts);
         return;
     }
     set_log_level(1);
