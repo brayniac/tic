@@ -100,10 +100,9 @@ mod receiver;
 mod sample;
 mod sender;
 
-pub use config::Config;
-pub use receiver::{Interest, Receiver, Percentile};
-pub use sender::Sender;
-pub use sample::Sample;
-pub use meters::Meters;
-
 pub use clocksource::Clocksource;
+pub use config::Config;
+pub use meters::Meters;
+pub use receiver::{Interest, Percentile, Receiver};
+pub use sample::Sample;
+pub use sender::Sender;

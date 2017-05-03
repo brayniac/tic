@@ -1,9 +1,7 @@
+use mpmc::Queue;
+use sample::Sample;
 use std::hash::Hash;
 use std::sync::Arc;
-
-use mpmc::Queue;
-
-use sample::Sample;
 
 #[derive(Clone)]
 /// a Sender is used to push `Sample`s to the `Receiver` it is clonable for sharing between threads

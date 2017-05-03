@@ -20,7 +20,7 @@ impl<T: Hash + Eq> Allans<T> {
 
     pub fn init(&mut self, key: T) {
         self.data
-            .insert(key, self.config.clone().build().unwrap());
+            .insert(key, self.config.build().unwrap());
     }
 
     pub fn record(&mut self, key: T, value: f64) {

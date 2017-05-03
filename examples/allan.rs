@@ -2,19 +2,14 @@
 extern crate log;
 extern crate shuteye;
 extern crate rand;
-
-use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
-
 extern crate tic;
 extern crate getopts;
 extern crate time;
 
-use std::fmt;
 use getopts::Options;
-use std::env;
-use std::thread;
+use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
+use std::{env, fmt, thread};
 use std::time::Duration;
-
 use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
 
 #[derive(Clone, PartialEq, Eq, Hash)]

@@ -1,11 +1,10 @@
 // `Meters` hold calculated values
 
-use std::fmt::Display;
+use receiver::Percentile;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
-
-use receiver::Percentile;
 
 #[derive(Clone)]
 pub struct Meters<T> {

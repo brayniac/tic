@@ -2,20 +2,15 @@
 extern crate log;
 extern crate shuteye;
 extern crate rand;
-
-use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
-
 extern crate tic;
 extern crate getopts;
 extern crate time;
-extern crate pad;
 
-use pad::{PadStr, Alignment};
-use std::fmt;
 use getopts::Options;
+use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 use std::env;
+use std::fmt;
 use std::thread;
-
 use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -66,12 +61,8 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &LogRecord) {
         if self.enabled(record.metadata()) {
-            let ms = format!("{:.*}",
-                             3,
-                             ((time::precise_time_ns() % 1_000_000_000) / 1_000_000));
-            println!("{}.{} {:<5} [{}] {}",
+            println!("{} {:<5} [{}] {}",
                      time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
-                     ms.pad(3, '0', Alignment::Right, true),
                      record.level().to_string(),
                      "tic benchmark",
                      record.args());

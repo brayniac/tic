@@ -1,15 +1,13 @@
 extern crate heatmap;
 extern crate histogram;
 
+use heatmap::Heatmap;
+use histogram::Histogram;
+use receiver::Receiver;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::time::Duration;
-
-use receiver::Receiver;
-
-use heatmap::Heatmap;
-use histogram::Histogram;
 
 /// a configuration struct for customizing `Receiver`
 #[derive(Clone)]

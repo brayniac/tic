@@ -29,8 +29,9 @@ impl<T: Hash + Eq> Counters<T> {
 
     pub fn count(&mut self, key: T) -> u64 {
         if let Some(h) = self.data.get(&key) {
-            return h.clone();
+            *h
+        } else {
+            0
         }
-        0
     }
 }

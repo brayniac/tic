@@ -3,7 +3,6 @@
 extern crate histogram;
 
 use histogram::Histogram;
-
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -45,7 +44,7 @@ impl<T: Hash + Eq> Histograms<T> {
     }
 
     pub fn clear(&mut self) {
-        for (_, histogram) in self.data.iter_mut() {
+        for histogram in self.data.values_mut() {
             histogram.clear();
         }
     }

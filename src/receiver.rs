@@ -1,23 +1,21 @@
 extern crate clocksource;
 
+use allans::Allans;
+use clocksource::Clocksource;
+use config::Config;
+use counters::Counters;
+use heatmaps::Heatmaps;
+use histograms::Histograms;
+use meters::Meters;
+use mpmc::Queue;
+use sample::Sample;
+use sender::Sender;
+use shuteye;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
-
-use clocksource::Clocksource;
-use mpmc::Queue;
-use shuteye;
-use tiny_http::{Server, Response, Request};
-
-use allans::Allans;
-use config::Config;
-use counters::Counters;
-use meters::Meters;
-use heatmaps::Heatmaps;
-use histograms::Histograms;
-use sample::Sample;
-use sender::Sender;
+use tiny_http::{Request, Response, Server};
 
 #[derive(Clone)]
 /// an Interest registers a metric for reporting
@@ -216,7 +214,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                     Interest::AllanDeviation(key) => {
                         for tau in self.taus.clone() {
                             if let Some(adev) = self.allans.adev(key.clone(), tau) {
-                                self.meters.set_adev(key.clone(), tau.clone(), adev);
+                                self.meters.set_adev(key.clone(), tau, adev);
                             }
                         }
                     }

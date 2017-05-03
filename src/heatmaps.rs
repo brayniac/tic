@@ -4,10 +4,9 @@ extern crate heatmap;
 extern crate waterfall;
 
 use heatmap::Heatmap;
-use waterfall::Waterfall;
-
 use std::collections::HashMap;
 use std::hash::Hash;
+use waterfall::Waterfall;
 
 pub struct Heatmaps<T> {
     config: heatmap::Config,
@@ -57,7 +56,7 @@ impl<T: Hash + Eq> Heatmaps<T> {
     }
 
     pub fn clear(&mut self) {
-        for (_, heatmap) in self.data.iter_mut() {
+        for heatmap in self.data.values_mut() {
             heatmap.clear();
         }
     }
