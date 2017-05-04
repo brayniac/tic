@@ -38,7 +38,8 @@ pub struct Receiver<T> {
     end_time: u64,
     run_duration: u64,
     config: Config<T>,
-    queue: Arc<Queue<Vec<Sample<T>>>>,
+    rx_queue: Arc<Queue<Vec<Sample<T>>>>,
+    tx_queue: Arc<Queue<Vec<Sample<T>>>>,
     allans: Allans<T>,
     counters: Counters<T>,
     histograms: Histograms<T>,
@@ -66,7 +67,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// create a `Receiver` from a tic::Config
     pub fn configured(config: Config<T>) -> Receiver<T> {
-        let queue = Arc::new(Queue::<Vec<Sample<T>>>::with_capacity(config.capacity));
+        let rx_queue = Arc::new(Queue::<Vec<Sample<T>>>::with_capacity(config.capacity));
+        let tx_queue = Arc::new(Queue::<Vec<Sample<T>>>::with_capacity(config.capacity));
+        let _ = tx_queue.push(Vec::with_capacity(config.batch_size));
 
         let slices = config.duration * config.windows;
 
@@ -88,7 +91,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             run_duration: run_duration,
             end_time: end_time,
             config: config,
-            queue: queue,
+            tx_queue: tx_queue,
+            rx_queue: rx_queue,
             allans: Allans::new(),
             counters: Counters::new(),
             histograms: Histograms::new(),
@@ -109,7 +113,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// returns a clone of the `Sender`
     pub fn get_sender(&self) -> Sender<T> {
-        Sender::new(self.queue.clone(), self.config.batch_size)
+
+        Sender::new(self.rx_queue.clone(),
+                    self.tx_queue.clone(),
+                    self.config.batch_size)
     }
 
     /// returns a clone of the `Clocksource`
@@ -166,8 +173,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                     } else {
                         break 'inner;
                     }
-                    if let Some(results) = self.queue.pop() {
-                        for result in results {
+                    if let Some(mut results) = self.rx_queue.pop() {
+                        for result in &results {
                             let t0 = self.clocksource.convert(result.start());
                             let t1 = self.clocksource.convert(result.stop());
                             let dt = t1 - t0;
@@ -176,6 +183,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             self.histograms.increment(result.metric(), dt as u64);
                             self.heatmaps
                                 .increment(result.metric(), t0 as u64, dt as u64);
+                        }
+                        results.clear();
+                        loop {
+                            match self.tx_queue.push(results) {
+                                Ok(_) => break,
+                                Err(r) => results = r,
+                            }
                         }
                     } else {
                         break 'inner;

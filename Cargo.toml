@@ -19,7 +19,6 @@ exclude = [ "scripts" ]
 
 [dependencies]
 allan = "0.2.1"
-bytes = "0.3.0"
 clocksource = "0.2.0"
 fnv = "1.0.5"
 getopts = "0.2.14"
@@ -36,3 +35,4 @@ waterfall = "0.6.6"
 [features]
 asm = [ "clocksource/asm" ]
 default = []
+unstable = []

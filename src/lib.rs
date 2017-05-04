@@ -81,7 +81,6 @@
 #[macro_use]
 extern crate log;
 extern crate allan;
-extern crate bytes;
 extern crate clocksource;
 extern crate fnv;
 extern crate mpmc;
