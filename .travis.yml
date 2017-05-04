@@ -5,7 +5,6 @@ rust:
 - nightly
 os:
 - linux
-after_success: sh scripts/travis-doc-upload.sh
 matrix:
   include:
     - os: linux
