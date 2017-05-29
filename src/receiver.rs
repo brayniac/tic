@@ -179,7 +179,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             let t1 = self.clocksource.convert(result.stop());
                             let dt = t1 - t0;
                             self.allans.record(result.metric(), dt);
-                            self.counters.increment(result.metric());
+                            self.counters.increment_by(result.metric(), result.count());
                             self.histograms.increment(result.metric(), dt as u64);
                             self.heatmaps
                                 .increment(result.metric(), t0 as u64, dt as u64);

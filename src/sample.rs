@@ -6,6 +6,7 @@ use std::hash::Hash;
 pub struct Sample<T> {
     start: u64,
     stop: u64,
+    count: u64,
     channel: T,
 }
 
@@ -15,6 +16,16 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
         Sample {
             start: start,
             stop: stop,
+            count: 1,
+            channel: channel,
+        }
+    }
+
+    pub fn counted(start: u64, stop: u64, count: u64, channel: T) -> Sample<T> {
+        Sample {
+            start: start,
+            stop: stop,
+            count: count,
             channel: channel,
         }
     }
@@ -42,5 +53,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
     /// return the stop time
     pub fn stop(&self) -> u64 {
         self.stop
+    }
+
+    /// return the count of events
+    pub fn count(&self) -> u64 {
+        self.count
     }
 }
