@@ -3,10 +3,27 @@ rust:
 - stable
 - beta
 - nightly
-os:
-- linux
+os: linux
+env: TYPE=default RUST_BACKTRACE=1
 matrix:
   include:
     - os: linux
       rust: nightly
-      script: cargo build --features asm
+      env: TYPE=features RUST_BACKTRACE=1
+      script:
+        - cargo test --features asm
+        - cargo build --features asm
+        - cargo test --release --features asm
+        - cargo build --release --features asm
+    - os: linux
+      rust: stable
+      env: TYPE=rustfmt RUST_BACKTRACE=1
+      script:
+        - (travis_wait 20 cargo install rustfmt || true)
+        - cargo fmt -- --write-mode=diff
+    - os: linux
+      rust: nightly
+      env: TYPE=clippy RUST_BACKTRACE=1
+      script:
+        - (travis_wait 20 cargo install clippy || true)
+        - cargo clippy

@@ -73,8 +73,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// ```
     pub fn duration(mut self, duration: usize) -> Self {
         self.duration = duration;
-        self.heatmap_config
-            .num_slices(self.duration * self.windows);
+        self.heatmap_config.num_slices(self.duration * self.windows);
         self
     }
 
@@ -88,8 +87,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// ```
     pub fn windows(mut self, windows: usize) -> Self {
         self.windows = windows;
-        self.heatmap_config
-            .num_slices(self.duration * self.windows);
+        self.heatmap_config.num_slices(self.duration * self.windows);
         self
     }
 
