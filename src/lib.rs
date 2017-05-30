@@ -78,6 +78,8 @@
 //!
 //! // stats will be available on the http_listen port while main() is running
 
+#![deny(warnings)]
+
 #[macro_use]
 extern crate log;
 extern crate allan;
