@@ -1,10 +1,15 @@
 # tic - time interval counts and statistics
 a high-performance stats library focused on rates and latencies from timestamped events
 
-[![Build Status](https://travis-ci.org/brayniac/tic.svg?branch=master)](https://travis-ci.org/brayniac/tic)
-[![crates.io](http://meritbadge.herokuapp.com/tic)](https://crates.io/crates/tic)
-[![License](http://img.shields.io/:license-mit-blue.svg)](http://opensource.org/licenses/MIT)
-[![License](http://img.shields.io/badge/license-APACHE2-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[![travis-badge][]][travis] [![downloads-badge][] ![release-badge][]][crate] [![license-badge][]](#license)
+
+[travis-badge]: https://img.shields.io/travis/brayniac/tic/master.svg
+[downloads-badge]: https://img.shields.io/crates/d/tic.svg
+[release-badge]: https://img.shields.io/crates/v/tic.svg
+[license-badge]: https://img.shields.io/crates/l/tic.svg
+[travis]: https://travis-ci.org/brayniac/tic
+[crate]: https://crates.io/crates/tic
+[Cargo]: https://github.com/rust-lang/cargo
 
 ## Usage
 
