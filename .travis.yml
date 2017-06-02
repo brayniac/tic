@@ -27,3 +27,5 @@ matrix:
       script:
         - (travis_wait 20 cargo install clippy || true)
         - cargo clippy
+  allow_failures:
+    - env: TYPE=clippy RUST_BACKTRACE=1
