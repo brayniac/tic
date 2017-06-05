@@ -293,7 +293,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     fn try_handle_http(&self, server: &Option<Server>) {
         if let Some(ref s) = *server {
             if let Ok(Some(request)) = s.try_recv() {
-                debug!("stats: handle http request");
+                trace!("stats: handle http request");
                 self.handle_http(request);
             }
         }
