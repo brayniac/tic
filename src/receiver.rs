@@ -217,12 +217,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                     Interest::Percentile(l) => {
                         for percentile in self.percentiles.clone() {
                             let v = l.clone();
-                            self.meters
-                                .set_percentile(v.clone(),
-                                                percentile.clone(),
-                                                self.histograms
-                                                    .percentile(v, percentile.1)
-                                                    .unwrap_or(0));
+                            self.meters.set_percentile(v.clone(),
+                                                       percentile.clone(),
+                                                       self.histograms
+                                                           .percentile(v, percentile.1)
+                                                           .unwrap_or(0));
                         }
                     }
                     Interest::AllanDeviation(key) => {
@@ -313,7 +312,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 }
             }
             _ => {
-                output = output + "{";
+                output += "{";
                 for (stat, value) in &self.meters.data {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }
@@ -321,7 +320,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }
                 output.pop();
-                output = output + "}";
+                output += "}";
             }
         }
 
