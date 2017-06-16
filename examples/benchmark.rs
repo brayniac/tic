@@ -61,11 +61,13 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &LogRecord) {
         if self.enabled(record.metadata()) {
-            println!("{} {:<5} [{}] {}",
-                     time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
-                     record.level().to_string(),
-                     "tic benchmark",
-                     record.args());
+            println!(
+                "{} {:<5} [{}] {}",
+                time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
+                record.level().to_string(),
+                "tic benchmark",
+                record.args()
+            );
         }
     }
 }
@@ -84,9 +86,9 @@ fn set_log_level(level: usize) {
         }
     }
     let _ = log::set_logger(|max_log_level| {
-                                max_log_level.set(log_filter);
-                                Box::new(SimpleLogger)
-                            });
+        max_log_level.set(log_filter);
+        Box::new(SimpleLogger)
+    });
 }
 
 fn print_usage(program: &str, opts: &Options) {
@@ -101,10 +103,12 @@ pub fn opts() -> Options {
     opts.optopt("w", "windows", "number of integration windows", "INTEGER");
     opts.optopt("d", "duration", "length of integration window", "INTEGER");
     opts.optopt("c", "capacity", "size of the mpmc queue", "INTEGER");
-    opts.optopt("b",
-                "batch",
-                "batch size of producer writes to queue",
-                "INTEGER");
+    opts.optopt(
+        "b",
+        "batch",
+        "batch size of producer writes to queue",
+        "INTEGER",
+    );
     opts.optflag("h", "help", "print this help menu");
 
     opts
@@ -167,7 +171,10 @@ fn main() {
         .http_listen("localhost:42024".to_owned())
         .build();
 
-    receiver.add_interest(Interest::Waterfall(Metric::Ok, "ok_waterfall.png".to_owned()));
+    receiver.add_interest(Interest::Waterfall(
+        Metric::Ok,
+        "ok_waterfall.png".to_owned(),
+    ));
     receiver.add_interest(Interest::Trace(Metric::Ok, "ok_trace.txt".to_owned()));
     receiver.add_interest(Interest::Count(Metric::Ok));
     receiver.add_interest(Interest::Percentile(Metric::Ok));
@@ -202,17 +209,19 @@ fn main() {
         let r = c as f64 / ((t1 - t0) as f64 / 1_000_000_000.0);
 
         info!("rate: {} samples per second", r);
-        info!("latency (ns): p50: {} p90: {} p999: {} p9999: {} max: {}",
-              m.percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
-                  .unwrap_or(&0),
-              m.percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
-                  .unwrap_or(&0),
-              m.percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
-                  .unwrap_or(&0),
-              m.percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
-                  .unwrap_or(&0),
-              m.percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
-                  .unwrap_or(&0));
+        info!(
+            "latency (ns): p50: {} p90: {} p999: {} p9999: {} max: {}",
+            m.percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
+                .unwrap_or(&0),
+            m.percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
+                .unwrap_or(&0),
+            m.percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
+                .unwrap_or(&0),
+            m.percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
+                .unwrap_or(&0),
+            m.percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
+                .unwrap_or(&0)
+        );
 
     }
     info!("saving files...");

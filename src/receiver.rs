@@ -114,9 +114,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     /// returns a clone of the `Sender`
     pub fn get_sender(&self) -> Sender<T> {
 
-        Sender::new(self.rx_queue.clone(),
-                    self.tx_queue.clone(),
-                    self.config.batch_size)
+        Sender::new(
+            self.rx_queue.clone(),
+            self.tx_queue.clone(),
+            self.config.batch_size,
+        )
     }
 
     /// returns a clone of the `Clocksource`
@@ -155,7 +157,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
         let window_time = self.window_time;
         let mut http_time = self.clocksource.counter() +
-                            (0.1 * self.clocksource.frequency()) as u64;
+            (0.1 * self.clocksource.frequency()) as u64;
 
         trace!("tic::Receiver polling");
         'outer: loop {
@@ -181,8 +183,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             self.allans.record(result.metric(), dt);
                             self.counters.increment_by(result.metric(), result.count());
                             self.histograms.increment(result.metric(), dt as u64);
-                            self.heatmaps
-                                .increment(result.metric(), t0 as u64, dt as u64);
+                            self.heatmaps.increment(
+                                result.metric(),
+                                t0 as u64,
+                                dt as u64,
+                            );
                         }
                         results.clear();
                         loop {
@@ -217,11 +222,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                     Interest::Percentile(l) => {
                         for percentile in self.percentiles.clone() {
                             let v = l.clone();
-                            self.meters.set_percentile(v.clone(),
-                                                       percentile.clone(),
-                                                       self.histograms
-                                                           .percentile(v, percentile.1)
-                                                           .unwrap_or(0));
+                            self.meters.set_percentile(
+                                v.clone(),
+                                percentile.clone(),
+                                self.histograms.percentile(v, percentile.1).unwrap_or(0),
+                            );
                         }
                     }
                     Interest::AllanDeviation(key) => {

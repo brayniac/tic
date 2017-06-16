@@ -13,10 +13,11 @@ pub struct Sender<T> {
 }
 
 impl<T: Hash + Eq + Send + Clone> Sender<T> {
-    pub fn new(tx_queue: Arc<Queue<Vec<Sample<T>>>>,
-               rx_queue: Arc<Queue<Vec<Sample<T>>>>,
-               batch_size: usize)
-               -> Sender<T> {
+    pub fn new(
+        tx_queue: Arc<Queue<Vec<Sample<T>>>>,
+        rx_queue: Arc<Queue<Vec<Sample<T>>>>,
+        batch_size: usize,
+    ) -> Sender<T> {
         let buffer = Vec::with_capacity(batch_size);
         Sender {
             batch_size: batch_size,
