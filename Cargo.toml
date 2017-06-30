@@ -17,17 +17,17 @@ keywords = [ "stats", "metrics", "telemetry", "interval" ]
 
 [dependencies]
 allan = "0.2.1"
-clocksource = "0.2.0"
+clocksource = "0.2.1"
 fnv = "1.0.5"
 getopts = "0.2.14"
-heatmap = "0.6.4"
-histogram = "0.6.4"
-log = "0.3.6"
+heatmap = "0.6.5"
+histogram = "0.6.6"
+log = "0.3.8"
 mpmc = "0.1.2"
 rand = "0.3.15"
 shuteye = "0.2.0"
 tiny_http = "0.5.8"
-time = "0.1.36"
+time = "0.1.37"
 waterfall = "0.7.0"
 
 [features]
