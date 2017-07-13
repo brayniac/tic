@@ -153,13 +153,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// run the receive loop for one window
     pub fn run_once(&mut self) {
-        trace!("tic::Receiver::run_once");
+        trace!("run once");
 
         let window_time = self.window_time;
         let mut http_time = self.clocksource.counter() +
             (0.1 * self.clocksource.frequency()) as u64;
 
-        trace!("tic::Receiver polling");
         'outer: loop {
             if self.clocksource.counter() > http_time {
                 self.try_handle_http(&self.server);
@@ -167,7 +166,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             }
 
             if !self.check_elapsed(window_time) {
-                trace!("tic::Reveiver::run_once try handle queue");
                 let mut i = 0;
                 'inner: loop {
                     if i < self.config.capacity {
@@ -201,12 +199,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                     }
                 }
             } else {
-                trace!("tic::Receiver::run_once complete");
                 break 'outer;
             }
 
-            if self.config.poll_delay.is_some() {
-                shuteye::sleep(self.config.poll_delay.unwrap());
+            if let Some(delay) = self.config.poll_delay {
+                trace!("delaying poll");
+                shuteye::sleep(delay);
             }
         }
     }
@@ -276,15 +274,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn save_files(&mut self) {
         for interest in self.interests.clone() {
             match interest {
-                Interest::AllanDeviation(_) |
-                Interest::Count(_) |
-                Interest::Percentile(_) => {}
                 Interest::Trace(l, f) => {
                     self.heatmaps.trace(l, f);
                 }
                 Interest::Waterfall(l, f) => {
                     self.heatmaps.waterfall(l, f);
                 }
+                _ => {}
             }
         }
     }
@@ -297,7 +293,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     fn try_handle_http(&self, server: &Option<Server>) {
         if let Some(ref s) = *server {
             if let Ok(Some(request)) = s.try_recv() {
-                trace!("stats: handle http request");
+                trace!("handle http request");
                 self.handle_http(request);
             }
         }
@@ -339,7 +335,7 @@ fn start_listener(listen: &Option<String>) -> Option<Server> {
     if let Some(ref l) = *listen {
         let http_socket = l.to_socket_addrs().unwrap().next().unwrap();
 
-        debug!("stats: starting HTTP listener");
+        debug!("starting HTTP listener");
         return Some(Server::http(http_socket).unwrap());
     }
     None
