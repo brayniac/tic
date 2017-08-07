@@ -1,7 +1,7 @@
 // `Meters` hold calculated values
 
+use common::Percentile;
 use fnv::FnvHashMap;
-use receiver::Percentile;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;

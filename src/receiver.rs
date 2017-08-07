@@ -1,35 +1,19 @@
+#![allow(deprecated)]
+
 extern crate clocksource;
 
-use allans::Allans;
 use clocksource::Clocksource;
+use common::{self, Interest, Percentile};
 use config::Config;
-use counters::Counters;
-use heatmaps::Heatmaps;
-use histograms::Histograms;
-use meters::Meters;
+use data::{Allans, Counters, Heatmaps, Histograms, Meters, Sample};
+use mio::{Events, Poll, PollOpt, Ready, Token, channel};
 use mpmc::Queue;
-use sample::Sample;
 use sender::Sender;
-use shuteye;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tiny_http::{Request, Response, Server};
-
-#[derive(Clone)]
-/// an Interest registers a metric for reporting
-pub enum Interest<T> {
-    AllanDeviation(T),
-    Count(T),
-    Percentile(T),
-    Trace(T, String),
-    Waterfall(T, String),
-}
-
-#[derive(Clone)]
-/// a Percentile is the label plus floating point percentile representation
-pub struct Percentile(pub String, pub f64);
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
@@ -38,8 +22,9 @@ pub struct Receiver<T> {
     end_time: u64,
     run_duration: u64,
     config: Config<T>,
-    rx_queue: Arc<Queue<Vec<Sample<T>>>>,
-    tx_queue: Arc<Queue<Vec<Sample<T>>>>,
+    empty_queue: Arc<Queue<Vec<Sample<T>>>>,
+    rx_queue: channel::Receiver<Vec<Sample<T>>>,
+    tx_queue: channel::SyncSender<Vec<Sample<T>>>,
     allans: Allans<T>,
     counters: Counters<T>,
     histograms: Histograms<T>,
@@ -50,6 +35,7 @@ pub struct Receiver<T> {
     heatmaps: Heatmaps<T>,
     server: Option<Server>,
     clocksource: Clocksource,
+    poll: Poll,
 }
 
 impl<T: Hash + Eq + Send + Clone + Display> Default for Receiver<T> {
@@ -67,9 +53,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// create a `Receiver` from a tic::Config
     pub fn configured(config: Config<T>) -> Receiver<T> {
-        let rx_queue = Arc::new(Queue::<Vec<Sample<T>>>::with_capacity(config.capacity));
-        let tx_queue = Arc::new(Queue::<Vec<Sample<T>>>::with_capacity(config.capacity));
-        let _ = tx_queue.push(Vec::with_capacity(config.batch_size));
+        let (tx_queue, rx_queue) = channel::sync_channel::<Vec<Sample<T>>>(config.capacity);
+        let empty_queue = Arc::new(Queue::with_capacity(config.capacity));
+        for _ in 0..config.capacity {
+            let _ = empty_queue.push(Vec::with_capacity(config.batch_size));
+        }
 
         let slices = config.duration * config.windows;
 
@@ -85,12 +73,17 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let run_duration = config.windows as u64 * window_duration;
         let end_time = start_time + run_duration;
 
+        let poll = Poll::new().unwrap();
+        poll.register(&rx_queue, Token(1), Ready::readable(), PollOpt::level())
+            .unwrap();
+
         Receiver {
             window_duration: window_duration,
             window_time: window_time,
             run_duration: run_duration,
             end_time: end_time,
             config: config,
+            empty_queue: empty_queue,
             tx_queue: tx_queue,
             rx_queue: rx_queue,
             allans: Allans::new(),
@@ -98,11 +91,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             histograms: Histograms::new(),
             meters: Meters::new(),
             interests: Vec::new(),
-            taus: default_taus(),
-            percentiles: default_percentiles(),
+            taus: common::default_taus(),
+            percentiles: common::default_percentiles(),
             heatmaps: Heatmaps::new(slices, start_time),
             server: server,
             clocksource: clocksource,
+            poll: poll,
         }
     }
 
@@ -115,7 +109,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn get_sender(&self) -> Sender<T> {
 
         Sender::new(
-            self.rx_queue.clone(),
+            self.empty_queue.clone(),
             self.tx_queue.clone(),
             self.config.batch_size,
         )
@@ -159,21 +153,23 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let mut http_time = self.clocksource.counter() +
             (0.1 * self.clocksource.frequency()) as u64;
 
-        'outer: loop {
+        loop {
+
             if self.clocksource.counter() > http_time {
                 self.try_handle_http(&self.server);
                 http_time += (0.1 * self.clocksource.frequency()) as u64;
             }
 
-            if !self.check_elapsed(window_time) {
-                let mut i = 0;
-                'inner: loop {
-                    if i < self.config.capacity {
-                        i += 1;
-                    } else {
-                        break 'inner;
-                    }
-                    if let Some(mut results) = self.rx_queue.pop() {
+            if self.check_elapsed(window_time) {
+                return;
+            }
+
+            let mut events = Events::with_capacity(1024);
+            self.poll.poll(&mut events, self.config.poll_delay).unwrap();
+            for event in events.iter() {
+                trace!("got: {} events", events.len());
+                if event.token() == Token(1) {
+                    if let Ok(mut results) = self.rx_queue.try_recv() {
                         for result in &results {
                             let t0 = self.clocksource.convert(result.start());
                             let t1 = self.clocksource.convert(result.stop());
@@ -188,24 +184,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             );
                         }
                         results.clear();
-                        loop {
-                            match self.tx_queue.push(results) {
-                                Ok(_) => break,
-                                Err(r) => results = r,
-                            }
-                        }
-                    } else {
-                        break 'inner;
+                        let _ = self.empty_queue.push(results);
+                        trace!("finished processing");
                     }
                 }
-            } else {
-                break 'outer;
             }
-
-            if let Some(delay) = self.config.poll_delay {
-                trace!("delaying poll");
-                shuteye::sleep(delay);
-            }
+            trace!("run complete");
         }
     }
 
@@ -339,34 +323,4 @@ fn start_listener(listen: &Option<String>) -> Option<Server> {
         return Some(Server::http(http_socket).unwrap());
     }
     None
-}
-
-// helper function to populate the default `Percentile`s to report
-fn default_percentiles() -> Vec<Percentile> {
-    let mut p = Vec::new();
-    p.push(Percentile("min".to_owned(), 0.0));
-    p.push(Percentile("p50".to_owned(), 50.0));
-    p.push(Percentile("p75".to_owned(), 75.0));
-    p.push(Percentile("p90".to_owned(), 90.0));
-    p.push(Percentile("p95".to_owned(), 95.0));
-    p.push(Percentile("p99".to_owned(), 99.0));
-    p.push(Percentile("p999".to_owned(), 99.9));
-    p.push(Percentile("p9999".to_owned(), 99.99));
-    p.push(Percentile("max".to_owned(), 100.0));
-    p
-}
-
-// helper function to populate the default `Taus`s to report
-fn default_taus() -> Vec<usize> {
-    let mut t = Vec::new();
-    for i in 1..10 {
-        t.push(i);
-    }
-    for i in 1..10 {
-        t.push(i * 10);
-    }
-    for i in 1..11 {
-        t.push(i * 100);
-    }
-    t
 }

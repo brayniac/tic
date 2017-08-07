@@ -13,23 +13,26 @@ repository = "https://github.com/brayniac/tic"
 
 readme = "README.md"
 
-keywords = [ "stats", "metrics", "telemetry", "interval" ]
+keywords = ["stats", "metrics", "telemetry", "interval"]
 
 [dependencies]
 allan = "0.2.1"
-clocksource = "0.2.1"
+bytes = "0.3.0"
+clocksource = "0.2.2"
 fnv = "1.0.5"
 getopts = "0.2.14"
 heatmap = "0.6.5"
 histogram = "0.6.6"
 log = "0.3.8"
+mio = "0.6.9"
 mpmc = "0.1.2"
 rand = "0.3.15"
-shuteye = "0.2.0"
+shuteye = "0.3.2"
 tiny_http = "0.5.8"
 time = "0.1.37"
 waterfall = "0.7.0"
 
 [features]
-asm = [ "clocksource/asm" ]
 default = []
+rdtsc = ["clocksource/rdtsc"]
+asm = ["rdtsc"]

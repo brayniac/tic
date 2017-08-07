@@ -83,8 +83,10 @@
 #[macro_use]
 extern crate log;
 extern crate allan;
+extern crate bytes;
 extern crate clocksource;
 extern crate fnv;
+extern crate mio;
 extern crate mpmc;
 extern crate heatmap;
 extern crate histogram;
@@ -92,19 +94,15 @@ extern crate waterfall;
 extern crate shuteye;
 extern crate tiny_http;
 
-mod allans;
+mod common;
 mod config;
-mod counters;
-mod meters;
-mod histograms;
-mod heatmaps;
+mod data;
 mod receiver;
-mod sample;
 mod sender;
 
 pub use clocksource::Clocksource;
+pub use common::{Interest, Percentile};
 pub use config::Config;
-pub use meters::Meters;
-pub use receiver::{Interest, Percentile, Receiver};
-pub use sample::Sample;
+pub use data::{Meters, Sample};
+pub use receiver::Receiver;
 pub use sender::Sender;

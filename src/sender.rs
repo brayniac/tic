@@ -1,6 +1,11 @@
+#![allow(deprecated)]
+
+use data::Sample;
+use mio::channel;
+use mio::channel::TrySendError;
 use mpmc::Queue;
-use sample::Sample;
 use std::hash::Hash;
+use std::io;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -8,44 +13,53 @@ use std::sync::Arc;
 pub struct Sender<T> {
     batch_size: usize,
     buffer: Option<Vec<Sample<T>>>,
+    tx_queue: channel::SyncSender<Vec<Sample<T>>>,
     rx_queue: Arc<Queue<Vec<Sample<T>>>>,
-    tx_queue: Arc<Queue<Vec<Sample<T>>>>,
 }
 
 impl<T: Hash + Eq + Send + Clone> Sender<T> {
     pub fn new(
-        tx_queue: Arc<Queue<Vec<Sample<T>>>>,
         rx_queue: Arc<Queue<Vec<Sample<T>>>>,
+        tx_queue: channel::SyncSender<Vec<Sample<T>>>,
         batch_size: usize,
     ) -> Sender<T> {
         let buffer = Vec::with_capacity(batch_size);
         Sender {
             batch_size: batch_size,
             buffer: Some(buffer),
-            rx_queue: rx_queue,
             tx_queue: tx_queue,
+            rx_queue: rx_queue,
         }
     }
 
     #[inline]
     /// a function to send a `Sample` to the `Receiver`
-    pub fn send(&mut self, sample: Sample<T>) -> Result<(), ()> {
+    pub fn send(&mut self, sample: Sample<T>) -> Result<(), io::Error> {
         let mut buffer = self.buffer.take().unwrap();
         buffer.push(sample);
         if buffer.len() >= self.batch_size {
-            match self.tx_queue.push(buffer) {
+            match self.tx_queue.try_send(buffer) {
                 Ok(_) => {
-                    loop {
-                        if let Some(b) = self.rx_queue.pop() {
-                            self.buffer = Some(b);
-                            break;
-                        }
+                    // try to re-use a buffer, otherwise allocate new
+                    if let Some(b) = self.rx_queue.pop() {
+                        self.buffer = Some(b);
+                    } else {
+                        self.buffer = Some(Vec::with_capacity(self.batch_size));
                     }
                     Ok(())
                 }
-                Err(buffer) => {
-                    self.buffer = Some(buffer);
-                    Err(())
+                Err(e) => {
+                    match e {
+                        TrySendError::Io(e) => {
+                            error!("io error: {}", e);
+                            Err(e)
+                        }
+                        TrySendError::Full(buffer) |
+                        TrySendError::Disconnected(buffer) => {
+                            self.buffer = Some(buffer);
+                            Ok(())
+                        }
+                    }
                 }
             }
         } else {
