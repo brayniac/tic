@@ -34,5 +34,6 @@ waterfall = "0.7.0"
 
 [features]
 default = []
+benchmark = []
 rdtsc = ["clocksource/rdtsc"]
 asm = ["rdtsc"]

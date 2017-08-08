@@ -36,3 +36,37 @@ impl<T: Hash + Eq> Counters<T> {
         }
     }
 }
+
+#[cfg(feature = "benchmark")]
+#[cfg(test)]
+mod benchmark {
+    extern crate test;
+    use super::*;
+
+    #[bench]
+    fn new(b: &mut test::Bencher) {
+        b.iter(|| Counters::<String>::new());
+    }
+
+    #[bench]
+    fn new_init(b: &mut test::Bencher) {
+        b.iter(|| {
+            let mut counters = Counters::<String>::new();
+            counters.init("test".to_owned());
+        });
+    }
+
+    #[bench]
+    fn increment(b: &mut test::Bencher) {
+        let mut counters = Counters::<String>::new();
+        counters.init("test".to_owned());
+        b.iter(|| { counters.increment("test".to_owned()); });
+    }
+
+    #[bench]
+    fn increment_by(b: &mut test::Bencher) {
+        let mut counters = Counters::<String>::new();
+        counters.init("test".to_owned());
+        b.iter(|| { counters.increment_by("test".to_owned(), 8); });
+    }
+}

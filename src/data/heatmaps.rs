@@ -61,3 +61,32 @@ impl<T: Hash + Eq> Heatmaps<T> {
         }
     }
 }
+
+#[cfg(feature = "benchmark")]
+#[cfg(test)]
+mod benchmark {
+    extern crate test;
+    use super::*;
+
+    #[bench]
+    fn init(b: &mut test::Bencher) {
+        b.iter(|| {
+            let mut heatmaps = Heatmaps::<String>::new(3600, 0);
+            heatmaps.init("test".to_owned());
+        });
+    }
+
+    #[bench]
+    fn increment(b: &mut test::Bencher) {
+        let mut heatmaps = Heatmaps::<String>::new(3600, 0);
+        heatmaps.init("test".to_owned());
+        b.iter(|| { heatmaps.increment("test".to_owned(), 1, 1); });
+    }
+
+    #[bench]
+    fn increment_large(b: &mut test::Bencher) {
+        let mut heatmaps = Heatmaps::<String>::new(3600, 0);
+        heatmaps.init("test".to_owned());
+        b.iter(|| { heatmaps.increment("test".to_owned(), 1, 8_675_309); });
+    }
+}

@@ -196,22 +196,26 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     fn check_elapsed(&mut self, t1: u64) -> bool {
         let tsc = self.clocksource.counter();
         if tsc >= t1 {
-            for interest in self.interests.clone() {
-                match interest {
-                    Interest::Count(l) => {
-                        self.meters.set_count(l.clone(), self.counters.count(l));
+            for interest in &self.interests {
+                match *interest {
+                    Interest::Count(ref key) => {
+                        self.meters.set_count(
+                            key.clone(),
+                            self.counters.count(key.clone()),
+                        );
                     }
-                    Interest::Percentile(l) => {
+                    Interest::Percentile(ref key) => {
                         for percentile in self.percentiles.clone() {
-                            let v = l.clone();
                             self.meters.set_percentile(
-                                v.clone(),
+                                key.clone(),
                                 percentile.clone(),
-                                self.histograms.percentile(v, percentile.1).unwrap_or(0),
+                                self.histograms
+                                    .percentile(key.clone(), percentile.1)
+                                    .unwrap_or(0),
                             );
                         }
                     }
-                    Interest::AllanDeviation(key) => {
+                    Interest::AllanDeviation(ref key) => {
                         for tau in self.taus.clone() {
                             if let Some(adev) = self.allans.adev(key.clone(), tau) {
                                 self.meters.set_adev(key.clone(), tau, adev);
@@ -323,4 +327,35 @@ fn start_listener(listen: &Option<String>) -> Option<Server> {
         return Some(Server::http(http_socket).unwrap());
     }
     None
+}
+
+#[cfg(feature = "benchmark")]
+#[cfg(test)]
+mod benchmark {
+    extern crate test;
+    use super::*;
+
+    #[bench]
+    fn heavy_cycle(b: &mut test::Bencher) {
+        let mut receiver = Receiver::<String>::new();
+        receiver.add_interest(Interest::Count("test".to_owned()));
+        receiver.add_interest(Interest::Percentile("test".to_owned()));
+        receiver.add_interest(Interest::AllanDeviation("test".to_owned()));
+        b.iter(|| {
+            // full stats evaluation
+            receiver.check_elapsed(0);
+        });
+    }
+
+    #[bench]
+    fn cheap_cycle(b: &mut test::Bencher) {
+        let mut receiver = Receiver::<String>::new();
+        receiver.add_interest(Interest::Count("test".to_owned()));
+        receiver.add_interest(Interest::Percentile("test".to_owned()));
+        receiver.add_interest(Interest::AllanDeviation("test".to_owned()));
+        b.iter(|| {
+            // no stats evaluation just get clock and compare
+            receiver.check_elapsed(u64::max_value());
+        });
+    }
 }

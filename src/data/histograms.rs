@@ -90,3 +90,32 @@ mod tests {
         assert_eq!(h.percentile(0, 50.0), Err("no data"));
     }
 }
+
+#[cfg(feature = "benchmark")]
+#[cfg(test)]
+mod benchmark {
+    extern crate test;
+    use super::*;
+
+    #[bench]
+    fn init(b: &mut test::Bencher) {
+        b.iter(|| {
+            let mut histograms = Histograms::<String>::new();
+            histograms.init("test".to_owned());
+        });
+    }
+
+    #[bench]
+    fn increment(b: &mut test::Bencher) {
+        let mut histograms = Histograms::<String>::new();
+        histograms.init("test".to_owned());
+        b.iter(|| { histograms.increment("test".to_owned(), 1); });
+    }
+
+    #[bench]
+    fn increment_large(b: &mut test::Bencher) {
+        let mut histograms = Histograms::<String>::new();
+        histograms.init("test".to_owned());
+        b.iter(|| { histograms.increment("test".to_owned(), 8_675_309); });
+    }
+}

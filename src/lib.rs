@@ -80,6 +80,10 @@
 
 #![deny(warnings)]
 
+#![cfg_attr(feature = "benchmark", feature(test))]
+#[cfg(feature = "benchmark")]
+extern crate test;
+
 #[macro_use]
 extern crate log;
 extern crate allan;
