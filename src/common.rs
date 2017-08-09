@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 /// an Interest registers a metric for reporting
 pub enum Interest<T> {
     AllanDeviation(T),
@@ -6,6 +6,12 @@ pub enum Interest<T> {
     Percentile(T),
     Trace(T, String),
     Waterfall(T, String),
+}
+
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub enum ControlMessage<T> {
+    AddInterest(Interest<T>),
+    RemoveInterest(Interest<T>),
 }
 
 #[derive(Clone)]

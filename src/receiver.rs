@@ -3,17 +3,22 @@
 extern crate clocksource;
 
 use clocksource::Clocksource;
-use common::{self, Interest, Percentile};
+use common::{self, ControlMessage, Interest, Percentile};
 use config::Config;
 use data::{Allans, Counters, Heatmaps, Histograms, Meters, Sample};
 use mio::{Events, Poll, PollOpt, Ready, Token, channel};
 use mpmc::Queue;
 use sender::Sender;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tiny_http::{Request, Response, Server};
+
+// define token numbers for data and control queues
+const TOKEN_DATA: usize = 1;
+const TOKEN_CONTROL: usize = 2;
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
@@ -23,13 +28,15 @@ pub struct Receiver<T> {
     run_duration: u64,
     config: Config<T>,
     empty_queue: Arc<Queue<Vec<Sample<T>>>>,
-    rx_queue: channel::Receiver<Vec<Sample<T>>>,
-    tx_queue: channel::SyncSender<Vec<Sample<T>>>,
+    data_rx: channel::Receiver<Vec<Sample<T>>>,
+    data_tx: channel::SyncSender<Vec<Sample<T>>>,
+    control_rx: channel::Receiver<ControlMessage<T>>,
+    control_tx: channel::SyncSender<ControlMessage<T>>,
     allans: Allans<T>,
     counters: Counters<T>,
     histograms: Histograms<T>,
     meters: Meters<T>,
-    interests: Vec<Interest<T>>,
+    interests: HashSet<Interest<T>>,
     taus: Vec<usize>,
     percentiles: Vec<Percentile>,
     heatmaps: Heatmaps<T>,
@@ -53,7 +60,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// create a `Receiver` from a tic::Config
     pub fn configured(config: Config<T>) -> Receiver<T> {
-        let (tx_queue, rx_queue) = channel::sync_channel::<Vec<Sample<T>>>(config.capacity);
+        let (data_tx, data_rx) = channel::sync_channel::<Vec<Sample<T>>>(config.capacity);
+        let (control_tx, control_rx) = channel::sync_channel::<ControlMessage<T>>(config.capacity);
         let empty_queue = Arc::new(Queue::with_capacity(config.capacity));
         for _ in 0..config.capacity {
             let _ = empty_queue.push(Vec::with_capacity(config.batch_size));
@@ -74,8 +82,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let end_time = start_time + run_duration;
 
         let poll = Poll::new().unwrap();
-        poll.register(&rx_queue, Token(1), Ready::readable(), PollOpt::level())
-            .unwrap();
+        poll.register(
+            &data_rx,
+            Token(TOKEN_DATA),
+            Ready::readable(),
+            PollOpt::level(),
+        ).unwrap();
+        poll.register(
+            &control_rx,
+            Token(TOKEN_CONTROL),
+            Ready::readable(),
+            PollOpt::level(),
+        ).unwrap();
 
         Receiver {
             window_duration: window_duration,
@@ -84,13 +102,15 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             end_time: end_time,
             config: config,
             empty_queue: empty_queue,
-            tx_queue: tx_queue,
-            rx_queue: rx_queue,
+            data_tx: data_tx,
+            data_rx: data_rx,
+            control_tx: control_tx,
+            control_rx: control_rx,
             allans: Allans::new(),
             counters: Counters::new(),
             histograms: Histograms::new(),
             meters: Meters::new(),
-            interests: Vec::new(),
+            interests: HashSet::new(),
             taus: common::default_taus(),
             percentiles: common::default_percentiles(),
             heatmaps: Heatmaps::new(slices, start_time),
@@ -107,10 +127,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// returns a clone of the `Sender`
     pub fn get_sender(&self) -> Sender<T> {
-
         Sender::new(
             self.empty_queue.clone(),
-            self.tx_queue.clone(),
+            self.data_tx.clone(),
+            self.control_tx.clone(),
             self.config.batch_size,
         )
     }
@@ -123,21 +143,42 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     /// register a stat for export
     pub fn add_interest(&mut self, interest: Interest<T>) {
         match interest.clone() {
-            Interest::AllanDeviation(l) => {
-                self.allans.init(l);
+            Interest::AllanDeviation(key) => {
+                self.allans.init(key);
             }
-            Interest::Count(l) => {
-                self.counters.init(l);
+            Interest::Count(key) => {
+                self.counters.init(key);
             }
-            Interest::Percentile(l) => {
-                self.histograms.init(l);
+            Interest::Percentile(key) => {
+                self.histograms.init(key);
             }
-            Interest::Trace(l, _) |
-            Interest::Waterfall(l, _) => {
-                self.heatmaps.init(l);
+            Interest::Trace(key, _) |
+            Interest::Waterfall(key, _) => {
+                self.heatmaps.init(key);
             }
         }
-        self.interests.push(interest)
+        self.interests.insert(interest);
+    }
+
+    /// de-register a stat for export
+    pub fn remove_interest(&mut self, interest: &Interest<T>) {
+        match interest.clone() {
+            Interest::AllanDeviation(key) => {
+                self.allans.remove(key);
+            }
+            Interest::Count(key) => {
+                self.counters.remove(key);
+            }
+            Interest::Percentile(key) => {
+                self.histograms.remove(key);
+            }
+            Interest::Trace(key, _) |
+            Interest::Waterfall(key, _) => {
+                self.heatmaps.remove(key);
+            }
+
+        }
+        self.interests.remove(interest);
     }
 
     /// clear the heatmaps
@@ -168,25 +209,40 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             self.poll.poll(&mut events, self.config.poll_delay).unwrap();
             for event in events.iter() {
                 trace!("got: {} events", events.len());
-                if event.token() == Token(1) {
-                    if let Ok(mut results) = self.rx_queue.try_recv() {
-                        for result in &results {
-                            let t0 = self.clocksource.convert(result.start());
-                            let t1 = self.clocksource.convert(result.stop());
-                            let dt = t1 - t0;
-                            self.allans.record(result.metric(), dt);
-                            self.counters.increment_by(result.metric(), result.count());
-                            self.histograms.increment(result.metric(), dt as u64);
-                            self.heatmaps.increment(
-                                result.metric(),
-                                t0 as u64,
-                                dt as u64,
-                            );
+                match event.token().0 {
+                    TOKEN_DATA => {
+                        if let Ok(mut results) = self.data_rx.try_recv() {
+                            for result in &results {
+                                let t0 = self.clocksource.convert(result.start());
+                                let t1 = self.clocksource.convert(result.stop());
+                                let dt = t1 - t0;
+                                self.allans.record(result.metric(), dt);
+                                self.counters.increment_by(result.metric(), result.count());
+                                self.histograms.increment(result.metric(), dt as u64);
+                                self.heatmaps.increment(
+                                    result.metric(),
+                                    t0 as u64,
+                                    dt as u64,
+                                );
+                            }
+                            results.clear();
+                            let _ = self.empty_queue.push(results);
+                            trace!("finished processing");
                         }
-                        results.clear();
-                        let _ = self.empty_queue.push(results);
-                        trace!("finished processing");
                     }
+                    TOKEN_CONTROL => {
+                        if let Ok(msg) = self.control_rx.try_recv() {
+                            match msg {
+                                ControlMessage::AddInterest(interest) => {
+                                    self.add_interest(interest);
+                                }
+                                ControlMessage::RemoveInterest(interest) => {
+                                    self.remove_interest(&interest);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
             trace!("run complete");

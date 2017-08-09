@@ -30,6 +30,10 @@ impl<T: Hash + Eq> Heatmaps<T> {
         self.data.insert(key, self.config.build().unwrap());
     }
 
+    pub fn remove(&mut self, key: T) {
+        self.data.remove(&key);
+    }
+
     pub fn increment(&mut self, key: T, start: u64, value: u64) {
         self.increment_by(key, start, value, 1);
     }

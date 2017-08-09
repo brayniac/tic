@@ -16,6 +16,10 @@ impl<T: Hash + Eq> Counters<T> {
         self.data.insert(key, 0);
     }
 
+    pub fn remove(&mut self, key: T) {
+        self.data.remove(&key);
+    }
+
     #[allow(dead_code)]
     pub fn increment(&mut self, key: T) {
         self.increment_by(key, 1);

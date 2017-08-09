@@ -22,6 +22,10 @@ impl<T: Hash + Eq> Allans<T> {
         self.data.insert(key, self.config.build().unwrap());
     }
 
+    pub fn remove(&mut self, key: T) {
+        self.data.remove(&key);
+    }
+
     pub fn record(&mut self, key: T, value: f64) {
         if let Some(a) = self.data.get_mut(&key) {
             a.record(value / 1_000_000_000.0); // convert to seconds

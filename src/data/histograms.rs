@@ -43,6 +43,10 @@ impl<T: Hash + Eq> Histograms<T> {
         self.data.insert(key, self.config.build().unwrap());
     }
 
+    pub fn remove(&mut self, key: T) {
+        self.data.remove(&key);
+    }
+
     pub fn clear(&mut self) {
         for histogram in self.data.values_mut() {
             histogram.clear();
