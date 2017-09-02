@@ -11,7 +11,7 @@ pub struct Allans<T> {
 
 impl<T: Hash + Eq> Allans<T> {
     pub fn new() -> Allans<T> {
-        let config = Allan::configure().style(Style::AllTau).max_tau(3600);
+        let config = Allan::configure().max_tau(3600).style(Style::AllTau);
         Allans {
             config: config,
             data: FnvHashMap::default(),
@@ -64,5 +64,36 @@ mod benchmark {
         let mut allans = Allans::<String>::new();
         allans.init("test".to_owned());
         b.iter(|| { allans.record("test".to_owned(), 1.0); });
+    }
+}
+
+#[cfg(test)]
+mod test {
+    extern crate rand;
+
+    use self::rand::distributions::{IndependentSample, Range};
+    use super::*;
+
+    #[test]
+    fn white_noise() {
+        let mut allans = Allans::<String>::new();
+        let key = "test".to_owned();
+        allans.init(key.clone());
+
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0.0, 1.0);
+        for _ in 0..10_000 {
+            let v = between.ind_sample(&mut rng);
+            allans.record(key.clone(), v);
+        }
+        for t in 1..1000 {
+            let v = allans.adev(key.clone(), t).unwrap_or_else(|| {
+                println!("error fetching for tau: {}", t);
+                panic!("error")
+            }) * t as f64;
+            if v <= 0.0000000004 || v >= 0.0000000006 {
+                panic!("tau: {} value: {} outside of range", t, v);
+            }
+        }
     }
 }

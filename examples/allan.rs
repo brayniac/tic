@@ -1,16 +1,15 @@
+extern crate getopts;
 #[macro_use]
 extern crate log;
-extern crate shuteye;
-extern crate rand;
 extern crate tic;
-extern crate getopts;
 extern crate time;
 
 use getopts::Options;
 use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 use std::{env, fmt, thread};
-use std::time::Duration;
 use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
+
+const SECOND: u64 = 1_000_000_000;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
@@ -39,13 +38,14 @@ impl Generator {
     }
 
     fn run(&mut self) {
-        let mut t1 = time::precise_time_ns() + 1_000_000_000;
+        let mut t1 = time::precise_time_ns() + SECOND;
         loop {
             let t = time::precise_time_ns();
             if t > t1 {
                 let t2 = self.clocksource.time();
+                trace!("sample: ref: {} tsc: {}", t, t2);
                 self.stats.send(Sample::new(t, t2, Metric::Ok)).unwrap();
-                t1 += 1_000_000_000;
+                t1 += SECOND;
             }
         }
     }
@@ -64,7 +64,7 @@ impl log::Log for SimpleLogger {
                 "{} {:<5} [{}] {}",
                 time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
                 record.level().to_string(),
-                "allanping",
+                "allan",
                 record.args()
             );
         }
@@ -128,11 +128,11 @@ fn main() {
 
     let windows = matches
         .opt_str("windows")
-        .unwrap_or_else(|| "60".to_owned())
+        .unwrap_or_else(|| "300".to_owned())
         .parse()
         .unwrap();
     let duration = 1;
-    let capacity = 10_000;
+    let capacity = 128;
     let batch = 1;
 
     // initialize a Receiver for the benchmark
@@ -158,11 +158,8 @@ fn main() {
     let clocksource = receiver.get_clocksource();
 
     let s = sender.clone();
-    let mut c = clocksource.clone();
+    let c = clocksource.clone();
 
-    // delay and recal the clocksource to get a more accurate frequency estimate
-    thread::sleep(Duration::new(60, 0));
-    c.recalibrate();
     thread::spawn(move || { Generator::new(s, c).run(); });
 
     let mut total = 0;
@@ -195,16 +192,24 @@ fn main() {
             m.percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
                 .unwrap_or(&0)
         );
-        info!("ADEV:    t=1: {}", m.adev(Metric::Ok, 1).unwrap_or(&0.0));
-        info!("ADEV:    t=2: {}", m.adev(Metric::Ok, 2).unwrap_or(&0.0));
-        info!("ADEV:    t=5: {}", m.adev(Metric::Ok, 5).unwrap_or(&0.0));
-        info!("ADEV:   t=10: {}", m.adev(Metric::Ok, 10).unwrap_or(&0.0));
-        info!("ADEV:   t=20: {}", m.adev(Metric::Ok, 20).unwrap_or(&0.0));
-        info!("ADEV:   t=50: {}", m.adev(Metric::Ok, 50).unwrap_or(&0.0));
-        info!("ADEV:  t=100: {}", m.adev(Metric::Ok, 100).unwrap_or(&0.0));
-        info!("ADEV:  t=200: {}", m.adev(Metric::Ok, 200).unwrap_or(&0.0));
-        info!("ADEV:  t=500: {}", m.adev(Metric::Ok, 500).unwrap_or(&0.0));
-        info!("ADEV: t=1000: {}", m.adev(Metric::Ok, 1000).unwrap_or(&0.0));
+        for t in 1..10 {
+            info!(
+                "ADEV:    t={}: {}",
+                t,
+                m.adev(Metric::Ok, t).unwrap_or(&0.0)
+            );
+        }
+        for t in 10..21 {
+            info!("ADEV:   t={}: {}", t, m.adev(Metric::Ok, t).unwrap_or(&0.0));
+        }
+        for t in 3..10 {
+            let t = t * 10;
+            info!("ADEV:   t={}: {}", t, m.adev(Metric::Ok, t).unwrap_or(&0.0));
+        }
+        for t in 1..4 {
+            let t = t * 100;
+            info!("ADEV:  t={}: {}", t, m.adev(Metric::Ok, t).unwrap_or(&0.0));
+        }
     }
     info!("saving files...");
     receiver.save_files();

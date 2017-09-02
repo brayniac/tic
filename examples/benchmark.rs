@@ -1,9 +1,9 @@
+
+extern crate getopts;
 #[macro_use]
 extern crate log;
-extern crate shuteye;
 extern crate rand;
 extern crate tic;
-extern crate getopts;
 extern crate time;
 
 use getopts::Options;
@@ -222,7 +222,6 @@ fn main() {
             m.percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
                 .unwrap_or(&0)
         );
-
     }
     info!("saving files...");
     receiver.save_files();

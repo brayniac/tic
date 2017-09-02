@@ -77,26 +77,21 @@
 //! }
 //!
 //! // stats will be available on the http_listen port while main() is running
-
-#![deny(warnings)]
-
 #![cfg_attr(feature = "benchmark", feature(test))]
 #[cfg(feature = "benchmark")]
 extern crate test;
 
-#[macro_use]
-extern crate log;
 extern crate allan;
-extern crate bytes;
 extern crate clocksource;
 extern crate fnv;
-extern crate mio;
-extern crate mpmc;
 extern crate heatmap;
 extern crate histogram;
-extern crate waterfall;
-extern crate shuteye;
+#[macro_use]
+extern crate log;
+extern crate mio;
+extern crate mpmc;
 extern crate tiny_http;
+extern crate waterfall;
 
 mod common;
 mod config;

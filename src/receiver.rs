@@ -1,7 +1,5 @@
 #![allow(deprecated)]
 
-extern crate clocksource;
-
 use clocksource::Clocksource;
 use common::{self, ControlMessage, Interest, Percentile};
 use config::Config;
@@ -176,7 +174,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             Interest::Waterfall(key, _) => {
                 self.heatmaps.remove(key);
             }
-
         }
         self.interests.remove(interest);
     }
@@ -195,7 +192,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             (0.1 * self.clocksource.frequency()) as u64;
 
         loop {
-
             if self.clocksource.counter() > http_time {
                 self.try_handle_http(&self.server);
                 http_time += (0.1 * self.clocksource.frequency()) as u64;

@@ -34,16 +34,11 @@ pub fn default_percentiles() -> Vec<Percentile> {
 }
 
 // helper function to populate the default `Taus`s to report
+// - All Taus from 1 to 300s inclusive
 pub fn default_taus() -> Vec<usize> {
     let mut t = Vec::new();
-    for i in 1..10 {
+    for i in 1..301 {
         t.push(i);
-    }
-    for i in 1..10 {
-        t.push(i * 10);
-    }
-    for i in 1..11 {
-        t.push(i * 100);
     }
     t
 }

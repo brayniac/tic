@@ -1,7 +1,6 @@
 // `Heatmaps` is a map of `Heatmap`s, keyed by metric
 
 extern crate heatmap;
-extern crate waterfall;
 
 use fnv::FnvHashMap;
 use heatmap::Heatmap;

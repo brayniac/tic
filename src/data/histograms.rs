@@ -123,3 +123,35 @@ mod benchmark {
         b.iter(|| { histograms.increment("test".to_owned(), 8_675_309); });
     }
 }
+
+
+#[cfg(test)]
+mod test {
+    extern crate rand;
+
+    use self::rand::distributions::{IndependentSample, Range};
+    use super::*;
+
+    #[test]
+    fn white_noise() {
+        let mut h = Histograms::<String>::new();
+        let key = "test".to_owned();
+        h.init(key.clone());
+
+        let mut rng = rand::thread_rng();
+        let between = Range::new(1, 100);
+        for _ in 0..1_000_000 {
+            let v = between.ind_sample(&mut rng);
+            h.increment(key.clone(), v);
+        }
+        for t in vec![25.0, 50.0, 75.0, 90.0, 99.0, 99.9, 99.99] {
+            let v = h.percentile(key.clone(), t).unwrap_or_else(|_| {
+                println!("error percentile: {}", t);
+                panic!("error")
+            }) as f64;
+            if v <= t * 0.9 && v >= t * 1.1 {
+                panic!("percentile: {} value: {} outside of range", t, v);
+            }
+        }
+    }
+}
