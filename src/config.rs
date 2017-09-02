@@ -13,16 +13,33 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct Config<T> {
     resource_type: PhantomData<T>,
+    /// duration of a sampling interval (window) in seconds
+    /// typical values are 1 or 60 for secondly or minutely reporting
     pub duration: usize,
+    /// the number of sampling intervals (windows) to aggregate in
+    /// heatmap and traces.
+    /// NOTE: The receiver will halt if service_mode is false and the
+    /// total number of windows have elapsed
     pub windows: usize,
+    /// the capacity of the stats queue. Default: 256
     pub capacity: usize,
+    /// the default batch size of a `Sender`. Default: 512
     pub batch_size: usize,
+    /// set continuous-run mode. heatmaps and traces will generate
+    /// every N windows when this is set to true. If it is set to false,
+    /// the `Receiver` will halt after N windows
     pub service_mode: bool,
+    /// set an optional delay between calls to poll
     pub poll_delay: Option<Duration>,
+    /// enable the HTTP stats export on the given address
     pub http_listen: Option<String>,
+    /// save a latency heatmap trace to the given file
     pub trace_file: Option<String>,
+    /// save a waterfal png of the latency heatmap to the given file
     pub waterfall_file: Option<String>,
+    /// the shared `Heatmap` configuration
     pub heatmap_config: heatmap::Config,
+    /// the shared `Histogram` configuration
     pub histogram_config: histogram::Config,
 }
 

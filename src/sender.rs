@@ -20,6 +20,7 @@ pub struct Sender<T> {
 }
 
 impl<T: Hash + Eq + Send + Clone> Sender<T> {
+    /// create a new `Sender` for use in client threads
     pub fn new(
         rx_queue: Arc<Queue<Vec<Sample<T>>>>,
         data_tx: channel::SyncSender<Vec<Sample<T>>>,

@@ -1,10 +1,15 @@
 #[derive(Clone, Eq, Hash, PartialEq)]
 /// an Interest registers a metric for reporting
 pub enum Interest<T> {
+    /// Calculate ADEV for the given metric
     AllanDeviation(T),
+    /// Keep a counter for the given metric
     Count(T),
+    /// Calculate latency percentiles for metric
     Percentile(T),
+    /// Creates a trace file of the latency heatmap
     Trace(T, String),
+    /// Generate a PNG plot of the latency heatmaps
     Waterfall(T, String),
 }
 

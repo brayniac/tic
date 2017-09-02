@@ -1,8 +1,7 @@
-
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
 extern crate getopts;
 #[macro_use]
 extern crate log;
-extern crate rand;
 extern crate tic;
 extern crate time;
 

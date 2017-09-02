@@ -245,6 +245,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         }
     }
 
+    // this function will check if the window is passed
+    // if it has, it will refresh the `Meters`
     fn check_elapsed(&mut self, t1: u64) -> bool {
         let tsc = self.clocksource.counter();
         if tsc >= t1 {
@@ -325,6 +327,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         }
     }
 
+    /// return a clone of the raw `Meters`
     pub fn clone_meters(&self) -> Meters<T> {
         self.meters.clone()
     }

@@ -1,3 +1,6 @@
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+#![allow(unknown_lints)]
+#![allow(many_single_char_names)]
 extern crate getopts;
 #[macro_use]
 extern crate log;

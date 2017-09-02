@@ -77,6 +77,8 @@
 //! }
 //!
 //! // stats will be available on the http_listen port while main() is running
+#![cfg_attr(feature = "cargo-clippy", deny(missing_docs))]
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
 #![cfg_attr(feature = "benchmark", feature(test))]
 #[cfg(feature = "benchmark")]
 extern crate test;

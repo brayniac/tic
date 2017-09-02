@@ -11,7 +11,7 @@ pub struct Sample<T> {
 }
 
 impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
-    /// create a new Sample from given start, stop, and channel
+    /// Create a new Sample for a single event
     pub fn new(start: u64, stop: u64, channel: T) -> Sample<T> {
         Sample {
             start: start,
@@ -21,6 +21,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
         }
     }
 
+    /// Create a new Sample when multiple occurances of the event have happened
     pub fn counted(start: u64, stop: u64, count: u64, channel: T) -> Sample<T> {
         Sample {
             start: start,
