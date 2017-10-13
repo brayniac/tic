@@ -58,8 +58,10 @@
 //!         .build();
 //!
 //! // register some interests
+//! // record the counts of samples with `Metric::Ok`
 //! receiver.add_interest(Interest::Count(Metric::Ok));
-//! receiver.add_interest(Interest::Percentile(Metric::Ok));
+//! // record latency percentiles of samples with `Metric::Ok`
+//! receiver.add_interest(Interest::LatencyPercentile(Metric::Ok));
 //!
 //! // get a sender and a clocksource
 //! let mut sender = receiver.get_sender();

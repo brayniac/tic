@@ -32,12 +32,14 @@ pub struct Receiver<T> {
     control_tx: channel::SyncSender<ControlMessage<T>>,
     allans: Allans<T>,
     counters: Counters<T>,
-    histograms: Histograms<T>,
+    latency_histograms: Histograms<T>,
+    value_histograms: Histograms<T>,
     meters: Meters<T>,
     interests: HashSet<Interest<T>>,
     taus: Vec<usize>,
     percentiles: Vec<Percentile>,
-    heatmaps: Heatmaps<T>,
+    latency_heatmaps: Heatmaps<T>,
+    value_heatmaps: Heatmaps<T>,
     server: Option<Server>,
     clocksource: Clocksource,
     poll: Poll,
@@ -106,12 +108,14 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             control_rx: control_rx,
             allans: Allans::new(),
             counters: Counters::new(),
-            histograms: Histograms::new(),
+            latency_histograms: Histograms::new(),
+            value_histograms: Histograms::new(),
             meters: Meters::new(),
             interests: HashSet::new(),
             taus: common::default_taus(),
             percentiles: common::default_percentiles(),
-            heatmaps: Heatmaps::new(slices, start_time),
+            latency_heatmaps: Heatmaps::new(slices, start_time),
+            value_heatmaps: Heatmaps::new(slices, start_time),
             server: server,
             clocksource: clocksource,
             poll: poll,
@@ -126,7 +130,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     /// returns a clone of the `Sender`
     pub fn get_sender(&self) -> Sender<T> {
         Sender::new(
-            self.empty_queue.clone(),
+            Arc::clone(&self.empty_queue),
             self.data_tx.clone(),
             self.control_tx.clone(),
             self.config.batch_size,
@@ -147,12 +151,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             Interest::Count(key) => {
                 self.counters.init(key);
             }
-            Interest::Percentile(key) => {
-                self.histograms.init(key);
+            Interest::LatencyPercentile(key) => {
+                self.latency_histograms.init(key);
             }
-            Interest::Trace(key, _) |
-            Interest::Waterfall(key, _) => {
-                self.heatmaps.init(key);
+            Interest::ValuePercentile(key) => {
+                self.value_histograms.init(key);
+            }
+            Interest::LatencyTrace(key, _) |
+            Interest::LatencyWaterfall(key, _) => {
+                self.latency_heatmaps.init(key);
+            }
+            Interest::ValueTrace(key, _) |
+            Interest::ValueWaterfall(key, _) => {
+                self.value_heatmaps.init(key);
             }
         }
         self.interests.insert(interest);
@@ -167,12 +178,19 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             Interest::Count(key) => {
                 self.counters.remove(key);
             }
-            Interest::Percentile(key) => {
-                self.histograms.remove(key);
+            Interest::LatencyPercentile(key) => {
+                self.latency_histograms.remove(key);
             }
-            Interest::Trace(key, _) |
-            Interest::Waterfall(key, _) => {
-                self.heatmaps.remove(key);
+            Interest::ValuePercentile(key) => {
+                self.value_histograms.remove(key);
+            }
+            Interest::LatencyTrace(key, _) |
+            Interest::LatencyWaterfall(key, _) => {
+                self.latency_heatmaps.remove(key);
+            }
+            Interest::ValueTrace(key, _) |
+            Interest::ValueWaterfall(key, _) => {
+                self.value_heatmaps.remove(key);
             }
         }
         self.interests.remove(interest);
@@ -180,7 +198,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 
     /// clear the heatmaps
     pub fn clear_heatmaps(&mut self) {
-        self.heatmaps.clear();
+        self.latency_heatmaps.clear();
+        self.value_heatmaps.clear();
     }
 
     /// run the receive loop for one window
@@ -214,11 +233,23 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                                 let dt = t1 - t0;
                                 self.allans.record(result.metric(), dt);
                                 self.counters.increment_by(result.metric(), result.count());
-                                self.histograms.increment(result.metric(), dt as u64);
-                                self.heatmaps.increment(
+                                self.latency_histograms.increment(
+                                    result.metric(),
+                                    dt as u64,
+                                );
+                                self.value_histograms.increment(
+                                    result.metric(),
+                                    result.count(),
+                                );
+                                self.latency_heatmaps.increment(
                                     result.metric(),
                                     t0 as u64,
                                     dt as u64,
+                                );
+                                self.value_heatmaps.increment(
+                                    result.metric(),
+                                    t0 as u64,
+                                    result.count(),
                                 );
                             }
                             results.clear();
@@ -258,12 +289,23 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             self.counters.count(key.clone()),
                         );
                     }
-                    Interest::Percentile(ref key) => {
+                    Interest::LatencyPercentile(ref key) => {
                         for percentile in self.percentiles.clone() {
-                            self.meters.set_percentile(
+                            self.meters.set_latency_percentile(
                                 key.clone(),
                                 percentile.clone(),
-                                self.histograms
+                                self.latency_histograms
+                                    .percentile(key.clone(), percentile.1)
+                                    .unwrap_or(0),
+                            );
+                        }
+                    }
+                    Interest::ValuePercentile(ref key) => {
+                        for percentile in self.percentiles.clone() {
+                            self.meters.set_value_percentile(
+                                key.clone(),
+                                percentile.clone(),
+                                self.value_histograms
                                     .percentile(key.clone(), percentile.1)
                                     .unwrap_or(0),
                             );
@@ -276,12 +318,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             }
                         }
                     }
-                    Interest::Trace(_, _) |
-                    Interest::Waterfall(_, _) => {}
+                    _ => {}
                 }
             }
 
-            self.histograms.clear();
+            self.latency_histograms.clear();
+            self.value_histograms.clear();
             self.window_time += self.window_duration;
             return true;
         }
@@ -306,7 +348,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             if !self.config.service_mode {
                 break 'outer;
             } else {
-                self.heatmaps.clear();
+                self.clear_heatmaps();
                 self.end_time += self.run_duration;
             }
         }
@@ -316,11 +358,17 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn save_files(&mut self) {
         for interest in self.interests.clone() {
             match interest {
-                Interest::Trace(l, f) => {
-                    self.heatmaps.trace(l, f);
+                Interest::LatencyTrace(l, f) => {
+                    self.latency_heatmaps.trace(l, f);
                 }
-                Interest::Waterfall(l, f) => {
-                    self.heatmaps.waterfall(l, f);
+                Interest::ValueTrace(l, f) => {
+                    self.value_heatmaps.trace(l, f);
+                }
+                Interest::LatencyWaterfall(l, f) => {
+                    self.latency_heatmaps.waterfall(l, f);
+                }
+                Interest::ValueWaterfall(l, f) => {
+                    self.value_heatmaps.waterfall(l, f);
                 }
                 _ => {}
             }

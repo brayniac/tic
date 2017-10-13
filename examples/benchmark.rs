@@ -170,13 +170,16 @@ fn main() {
         .http_listen("localhost:42024".to_owned())
         .build();
 
-    receiver.add_interest(Interest::Waterfall(
+    receiver.add_interest(Interest::LatencyWaterfall(
         Metric::Ok,
         "ok_waterfall.png".to_owned(),
     ));
-    receiver.add_interest(Interest::Trace(Metric::Ok, "ok_trace.txt".to_owned()));
+    receiver.add_interest(Interest::LatencyTrace(
+        Metric::Ok,
+        "ok_trace.txt".to_owned(),
+    ));
     receiver.add_interest(Interest::Count(Metric::Ok));
-    receiver.add_interest(Interest::Percentile(Metric::Ok));
+    receiver.add_interest(Interest::LatencyPercentile(Metric::Ok));
 
     let sender = receiver.get_sender();
     let clocksource = receiver.get_clocksource();
@@ -210,15 +213,15 @@ fn main() {
         info!("rate: {} samples per second", r);
         info!(
             "latency (ns): p50: {} p90: {} p999: {} p9999: {} max: {}",
-            m.percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
+            m.latency_percentile(&Metric::Ok, Percentile("p50".to_owned(), 50.0))
                 .unwrap_or(&0),
-            m.percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
+            m.latency_percentile(&Metric::Ok, Percentile("p90".to_owned(), 90.0))
                 .unwrap_or(&0),
-            m.percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
+            m.latency_percentile(&Metric::Ok, Percentile("p999".to_owned(), 99.9))
                 .unwrap_or(&0),
-            m.percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
+            m.latency_percentile(&Metric::Ok, Percentile("p9999".to_owned(), 99.99))
                 .unwrap_or(&0),
-            m.percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
+            m.latency_percentile(&Metric::Ok, Percentile("max".to_owned(), 100.0))
                 .unwrap_or(&0)
         );
     }
