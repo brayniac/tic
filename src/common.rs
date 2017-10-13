@@ -1,16 +1,31 @@
 #[derive(Clone, Eq, Hash, PartialEq)]
 /// an Interest registers a metric for reporting
 pub enum Interest<T> {
-    /// Calculate ADEV for the given metric
+    /// Calculate ADEV for the given metric based on the phase difference
+    /// between start and stop of each `Sample`. NOTE: It is expected that there
+    /// is 1 sample per second per metric
     AllanDeviation(T),
-    /// Keep a counter for the given metric
+    /// Keep a counter for the given metric, this is incremented by each count
+    /// associated with a `Sample`
     Count(T),
-    /// Calculate latency percentiles for metric
-    Percentile(T),
-    /// Creates a trace file of the latency heatmap
-    Trace(T, String),
-    /// Generate a PNG plot of the latency heatmaps
-    Waterfall(T, String),
+    /// Calculate latency percentiles for metric based on the delta between
+    /// start and stop time for each `Sample`
+    LatencyPercentile(T),
+    /// Calculate value percentiles for metric based on the counts associated
+    /// with each `Sample`
+    ValuePercentile(T),
+    /// Creates a trace file of the latency heatmaps which store the delta
+    /// between start and stop time for each `Sample`
+    LatencyTrace(T, String),
+    /// Generate a PNG plot of the latency heatmaps which store the delta
+    /// between start and stop time for each `Sample`
+    LatencyWaterfall(T, String),
+    /// Creates a trace file of the value heatmaps which store counts
+    /// asccociated with each `Sample`
+    ValueTrace(T, String),
+    /// Generate a PNG plot of the value heatmaps which store counts asccociated
+    /// with each `Sample`
+    ValueWaterfall(T, String),
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]

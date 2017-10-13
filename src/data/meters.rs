@@ -40,8 +40,14 @@ impl<T: Hash + Eq + Send + Display + Clone> Meters<T> {
     }
 
     /// update the `Percentile` for a given metric
-    pub fn set_percentile(&mut self, channel: T, percentile: Percentile, value: u64) {
+    pub fn set_latency_percentile(&mut self, channel: T, percentile: Percentile, value: u64) {
         let key = format!("{}_{}_nanoseconds", channel, percentile.0);
+        self.data.insert(key, value);
+    }
+
+    /// update the `Percentile` for a given metric
+    pub fn set_value_percentile(&mut self, channel: T, percentile: Percentile, value: u64) {
+        let key = format!("{}_{}_units", channel, percentile.0);
         self.data.insert(key, value);
     }
 
@@ -57,9 +63,15 @@ impl<T: Hash + Eq + Send + Display + Clone> Meters<T> {
         self.data.get(&key)
     }
 
-    /// get the `Percentile` for a given metric
-    pub fn percentile(&self, channel: &T, percentile: Percentile) -> Option<&u64> {
+    /// get a `Percentile` of sample latencies for a given metric
+    pub fn latency_percentile(&self, channel: &T, percentile: Percentile) -> Option<&u64> {
         let key = format!("{}_{}_nanoseconds", channel, percentile.0);
+        self.data.get(&key)
+    }
+
+    /// get the `Percentile` of sample counts for a given metric
+    pub fn value_percentile(&self, channel: &T, percentile: Percentile) -> Option<&u64> {
+        let key = format!("{}_{}_units", channel, percentile.0);
         self.data.get(&key)
     }
 
