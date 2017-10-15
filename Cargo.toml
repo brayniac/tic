@@ -36,4 +36,3 @@ rand = "0.3.16"
 default = []
 benchmark = []
 rdtsc = ["clocksource/rdtsc"]
-asm = ["rdtsc"]
