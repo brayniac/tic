@@ -4,7 +4,7 @@ use clocksource::Clocksource;
 use common::{self, ControlMessage, Interest, Percentile};
 use config::Config;
 use data::{Allans, Counters, Heatmaps, Histograms, Meters, Sample};
-use mio::{Events, Poll, PollOpt, Ready, Token, channel};
+use mio::{self, Events, Poll, PollOpt, Ready, channel};
 use mpmc::Queue;
 use sender::Sender;
 use std::collections::HashSet;
@@ -15,8 +15,11 @@ use std::sync::Arc;
 use tiny_http::{Request, Response, Server};
 
 // define token numbers for data and control queues
-const TOKEN_DATA: usize = 1;
-const TOKEN_CONTROL: usize = 2;
+#[derive(Clone, Copy)]
+enum Token {
+    Control = 0,
+    Data = 1,
+}
 
 /// a `Receiver` processes incoming `Sample`s and generates stats
 pub struct Receiver<T> {
@@ -84,13 +87,13 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let poll = Poll::new().unwrap();
         poll.register(
             &data_rx,
-            Token(TOKEN_DATA),
+            mio::Token(Token::Data as usize),
             Ready::readable(),
             PollOpt::level(),
         ).unwrap();
         poll.register(
             &control_rx,
-            Token(TOKEN_CONTROL),
+            mio::Token(Token::Control as usize),
             Ready::readable(),
             PollOpt::level(),
         ).unwrap();
@@ -224,52 +227,49 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             self.poll.poll(&mut events, self.config.poll_delay).unwrap();
             for event in events.iter() {
                 trace!("got: {} events", events.len());
-                match event.token().0 {
-                    TOKEN_DATA => {
-                        if let Ok(mut results) = self.data_rx.try_recv() {
-                            for result in &results {
-                                let t0 = self.clocksource.convert(result.start());
-                                let t1 = self.clocksource.convert(result.stop());
-                                let dt = t1 - t0;
-                                self.allans.record(result.metric(), dt);
-                                self.counters.increment_by(result.metric(), result.count());
-                                self.latency_histograms.increment(
-                                    result.metric(),
-                                    dt as u64,
-                                );
-                                self.value_histograms.increment(
-                                    result.metric(),
-                                    result.count(),
-                                );
-                                self.latency_heatmaps.increment(
-                                    result.metric(),
-                                    t0 as u64,
-                                    dt as u64,
-                                );
-                                self.value_heatmaps.increment(
-                                    result.metric(),
-                                    t0 as u64,
-                                    result.count(),
-                                );
-                            }
-                            results.clear();
-                            let _ = self.empty_queue.push(results);
-                            trace!("finished processing");
+                let token = event.token().0;
+                if token == Token::Data as usize {
+                    if let Ok(mut results) = self.data_rx.try_recv() {
+                        for result in &results {
+                            let t0 = self.clocksource.convert(result.start());
+                            let t1 = self.clocksource.convert(result.stop());
+                            let dt = t1 - t0;
+                            self.allans.record(result.metric(), dt);
+                            self.counters.increment_by(result.metric(), result.count());
+                            self.latency_histograms.increment(
+                                result.metric(),
+                                dt as u64,
+                            );
+                            self.value_histograms.increment(
+                                result.metric(),
+                                result.count(),
+                            );
+                            self.latency_heatmaps.increment(
+                                result.metric(),
+                                t0 as u64,
+                                dt as u64,
+                            );
+                            self.value_heatmaps.increment(
+                                result.metric(),
+                                t0 as u64,
+                                result.count(),
+                            );
                         }
+                        results.clear();
+                        let _ = self.empty_queue.push(results);
+                        trace!("finished processing");
                     }
-                    TOKEN_CONTROL => {
-                        if let Ok(msg) = self.control_rx.try_recv() {
-                            match msg {
-                                ControlMessage::AddInterest(interest) => {
-                                    self.add_interest(interest);
-                                }
-                                ControlMessage::RemoveInterest(interest) => {
-                                    self.remove_interest(&interest);
-                                }
+                } else if token == Token::Control as usize {
+                    if let Ok(msg) = self.control_rx.try_recv() {
+                        match msg {
+                            ControlMessage::AddInterest(interest) => {
+                                self.add_interest(interest);
+                            }
+                            ControlMessage::RemoveInterest(interest) => {
+                                self.remove_interest(&interest);
                             }
                         }
                     }
-                    _ => {}
                 }
             }
             trace!("run complete");
