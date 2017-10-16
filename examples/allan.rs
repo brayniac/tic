@@ -145,7 +145,7 @@ fn main() {
         .capacity(capacity)
         .batch_size(batch)
         .service(true)
-        .http_listen("localhost:42024".to_owned())
+        .http_listen("localhost:42024")
         .build();
 
     receiver.add_interest(Interest::LatencyWaterfall(
