@@ -10,7 +10,7 @@ use sender::Sender;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::Hash;
-use std::net::ToSocketAddrs;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tiny_http::{Request, Response, Server};
 
@@ -70,12 +70,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             let _ = empty_queue.push(Vec::with_capacity(config.batch_size));
         }
 
-        let slices = config.duration * config.windows;
-
-        let listen = config.http_listen.clone();
-        let server = start_listener(&listen);
-
         let clocksource = Clocksource::default();
+        let server = start_listener(&config.http_listen);
+        let slices = config.duration * config.windows;
 
         // calculate counter values for start, window, and end times
         let start_time = clocksource.counter();
@@ -422,12 +419,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
 }
 
 // start the HTTP listener for tic
-fn start_listener(listen: &Option<String>) -> Option<Server> {
-    if let Some(ref l) = *listen {
-        let http_socket = l.to_socket_addrs().unwrap().next().unwrap();
-
+fn start_listener(listen: &Option<SocketAddr>) -> Option<Server> {
+    if let Some(ref socket) = *listen {
         debug!("starting HTTP listener");
-        return Some(Server::http(http_socket).unwrap());
+        return Some(Server::http(socket).unwrap());
     }
     None
 }
