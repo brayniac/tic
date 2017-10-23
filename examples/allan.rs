@@ -11,8 +11,7 @@ use getopts::Options;
 use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 use std::{env, fmt, thread};
 use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
-
-const SECOND: u64 = 1_000_000_000;
+use tic::SECOND;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
@@ -41,14 +40,14 @@ impl Generator {
     }
 
     fn run(&mut self) {
-        let mut t1 = time::precise_time_ns() + SECOND;
+        let mut t1 = time::precise_time_ns() + SECOND as u64;
         loop {
             let t = time::precise_time_ns();
             if t > t1 {
                 let t2 = self.clocksource.time();
                 trace!("sample: ref: {} tsc: {}", t, t2);
                 self.stats.send(Sample::new(t, t2, Metric::Ok)).unwrap();
-                t1 += SECOND;
+                t1 += SECOND as u64;
             }
         }
     }

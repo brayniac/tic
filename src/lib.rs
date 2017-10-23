@@ -104,7 +104,7 @@ mod receiver;
 mod sender;
 
 pub use clocksource::Clocksource;
-pub use common::{Interest, Percentile};
+pub use common::{Interest, Percentile, SECOND};
 pub use config::Config;
 pub use data::{Meters, Sample};
 pub use receiver::Receiver;

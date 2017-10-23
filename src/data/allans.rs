@@ -1,5 +1,6 @@
 // `Allans` is a map for calculating ADEV and AVAR, keyed by metric
 
+use SECOND;
 use allan::{Allan, Config, Style};
 use fnv::FnvHashMap;
 use std::hash::Hash;
@@ -10,8 +11,8 @@ pub struct Allans<T> {
 }
 
 impl<T: Hash + Eq> Allans<T> {
-    pub fn new() -> Allans<T> {
-        let config = Allan::configure().max_tau(3600).style(Style::AllTau);
+    pub fn new(max_tau: usize) -> Allans<T> {
+        let config = Allan::configure().max_tau(max_tau).style(Style::AllTau);
         Allans {
             config: config,
             data: FnvHashMap::default(),
@@ -28,20 +29,14 @@ impl<T: Hash + Eq> Allans<T> {
 
     pub fn record(&mut self, key: T, value: f64) {
         if let Some(a) = self.data.get_mut(&key) {
-            a.record(value / 1_000_000_000.0); // convert to seconds
-            return;
+            a.record(value / SECOND as f64); // convert nanoseconds to seconds
         }
     }
 
-    pub fn adev(&mut self, key: T, tau: usize) -> Option<f64> {
-        if let Some(a) = self.data.get(&key) {
-            if let Some(t) = a.get(tau) {
-                if let Some(adev) = t.deviation() {
-                    return Some(adev);
-                }
-            }
-        }
-        None
+    pub fn adev(&mut self, key: &T, tau: usize) -> Result<f64, &'static str> {
+        let allan = self.data.get(key).ok_or("key not found")?;
+        let tau = allan.get(tau).ok_or("no tau for allan")?;
+        tau.deviation().ok_or("no adev for tau")
     }
 }
 
@@ -73,10 +68,11 @@ mod test {
 
     use self::rand::distributions::{IndependentSample, Range};
     use super::*;
+    use common::is_between;
 
     #[test]
     fn white_noise() {
-        let mut allans = Allans::<String>::new();
+        let mut allans = Allans::<String>::new(1000);
         let key = "test".to_owned();
         allans.init(key.clone());
 
@@ -87,11 +83,11 @@ mod test {
             allans.record(key.clone(), v);
         }
         for t in 1..1000 {
-            let v = allans.adev(key.clone(), t).unwrap_or_else(|| {
-                println!("error fetching for tau: {}", t);
+            let v = allans.adev(&key, t).unwrap_or_else(|e| {
+                println!("error fetching for tau: {} error: {}", t, e);
                 panic!("error")
             }) * t as f64;
-            if v <= 0.0000000004 || v >= 0.0000000006 {
+            if !is_between(v, 4e-10, 6e-10) {
                 panic!("tau: {} value: {} outside of range", t, v);
             }
         }

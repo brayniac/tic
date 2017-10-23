@@ -81,6 +81,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         let run_duration = config.windows as u64 * window_duration;
         let end_time = start_time + run_duration;
 
+        let max_tau = config.max_tau;
+
         let poll = Poll::new().unwrap();
         poll.register(
             &data_rx,
@@ -106,7 +108,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             data_rx: data_rx,
             control_tx: control_tx,
             control_rx: control_rx,
-            allans: Allans::new(),
+            allans: Allans::new(max_tau),
             counters: Counters::new(),
             latency_histograms: Histograms::new(),
             value_histograms: Histograms::new(),
@@ -278,6 +280,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     fn check_elapsed(&mut self, t1: u64) -> bool {
         let tsc = self.clocksource.counter();
         if tsc >= t1 {
+            self.meters.clear();
             for interest in &self.interests {
                 match *interest {
                     Interest::Count(ref key) => {
@@ -302,15 +305,17 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             self.meters.set_value_percentile(
                                 key.clone(),
                                 percentile.clone(),
-                                self.value_histograms
-                                    .percentile(key.clone(), percentile.1)
-                                    .unwrap_or(0),
+                                (self.value_histograms
+                                     .percentile(key.clone(), percentile.1)
+                                     .unwrap_or(0) as f64 *
+                                     self.config.sample_rate) as
+                                    u64,
                             );
                         }
                     }
                     Interest::AllanDeviation(ref key) => {
                         for tau in self.taus.clone() {
-                            if let Some(adev) = self.allans.adev(key.clone(), tau) {
+                            if let Ok(adev) = self.allans.adev(key, tau) {
                                 self.meters.set_adev(key.clone(), tau, adev);
                             }
                         }
@@ -408,7 +413,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                 for (stat, value) in &self.meters.data_float {
                     output = output + &format!("\"{}\":{},", stat, value);
                 }
-                output.pop();
+                if output.len() > 1 {
+                    output.pop();
+                }
                 output += "}";
             }
         }

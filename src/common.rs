@@ -1,3 +1,8 @@
+/// Duration of 1 second in nanoseconds
+pub const SECOND: u64 = 1_000_000_000;
+/// Duration of 1 minute in nanoseconds
+pub const MINUTE: u64 = 60 * SECOND;
+
 #[derive(Clone, Eq, Hash, PartialEq)]
 /// an Interest registers a metric for reporting
 pub enum Interest<T> {
@@ -61,4 +66,10 @@ pub fn default_taus() -> Vec<usize> {
         t.push(i);
     }
     t
+}
+
+// helper function for tests, ignore dead_code warnings
+#[allow(dead_code)]
+pub fn is_between(value: f64, min: f64, max: f64) -> bool {
+    value >= min && value <= max
 }

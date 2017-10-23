@@ -80,4 +80,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Meters<T> {
         let key = format!("{}_tau_{}_adev", channel, tau);
         self.data_float.get(&key)
     }
+
+    /// clear the Meters
+    pub fn clear(&mut self) {
+        self.data.clear()
+    }
 }

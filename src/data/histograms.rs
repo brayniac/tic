@@ -131,6 +131,7 @@ mod test {
 
     use self::rand::distributions::{IndependentSample, Range};
     use super::*;
+    use common::is_between;
 
     #[test]
     fn white_noise() {
@@ -149,7 +150,7 @@ mod test {
                 println!("error percentile: {}", t);
                 panic!("error")
             }) as f64;
-            if v <= t * 0.9 && v >= t * 1.1 {
+            if !is_between(v, t * 0.9, t * 1.1) {
                 panic!("percentile: {} value: {} outside of range", t, v);
             }
         }
