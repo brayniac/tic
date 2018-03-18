@@ -20,7 +20,7 @@ matrix:
       env: TYPE=rustfmt RUST_BACKTRACE=1
       script:
         - cargo install rustfmt || cargo fmt -- --version || cargo install -f rustfmt
-        - cargo fmt -- --write-mode=diff
+        - cargo fmt -- --write-mode=diff --force
     - os: linux
       rust: nightly
       env: TYPE=clippy RUST_BACKTRACE=1
