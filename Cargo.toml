@@ -17,7 +17,7 @@ keywords = ["stats", "metrics", "telemetry", "interval"]
 
 [dependencies]
 allan = "0.2.2"
-clocksource = "0.2.2"
+clocksource = "0.4.0"
 fnv = "1.0.5"
 getopts = "0.2.14"
 heatmap = "0.6.5"
