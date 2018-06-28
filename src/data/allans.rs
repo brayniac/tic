@@ -49,14 +49,14 @@ mod benchmark {
     #[bench]
     fn init(b: &mut test::Bencher) {
         b.iter(|| {
-            let mut allans = Allans::<String>::new();
+            let mut allans = Allans::<String>::new(1000);
             allans.init("test".to_owned());
         });
     }
 
     #[bench]
     fn record(b: &mut test::Bencher) {
-        let mut allans = Allans::<String>::new();
+        let mut allans = Allans::<String>::new(1000);
         allans.init("test".to_owned());
         b.iter(|| { allans.record("test".to_owned(), 1.0); });
     }

@@ -39,6 +39,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Meters<T> {
         self.data.insert(key, value);
     }
 
+    /// update the value for a given metric
+    pub fn set_value(&mut self, channel: T, value: u64) {
+        let key = format!("{}_value", channel);
+        self.data.insert(key, value);
+    }
+
     /// update the `Percentile` for a given metric
     pub fn set_latency_percentile(&mut self, channel: T, percentile: Percentile, value: u64) {
         let key = format!("{}_{}_nanoseconds", channel, percentile.0);

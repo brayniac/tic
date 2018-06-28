@@ -3,7 +3,7 @@
 use clocksource::Clocksource;
 use common::{self, ControlMessage, Interest, Percentile};
 use config::Config;
-use data::{Allans, Counters, Heatmaps, Histograms, Meters, Sample};
+use data::{Allans, Counters, Gauges, Heatmaps, Histograms, Meters, Sample};
 use mio::{self, Events, Poll, PollOpt, Ready, channel};
 use mpmc::Queue;
 use sender::Sender;
@@ -35,6 +35,7 @@ pub struct Receiver<T> {
     control_tx: channel::SyncSender<ControlMessage<T>>,
     allans: Allans<T>,
     counters: Counters<T>,
+    gauges: Gauges<T>,
     latency_histograms: Histograms<T>,
     value_histograms: Histograms<T>,
     meters: Meters<T>,
@@ -110,6 +111,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             control_rx: control_rx,
             allans: Allans::new(max_tau),
             counters: Counters::new(),
+            gauges: Gauges::new(),
             latency_histograms: Histograms::new(),
             value_histograms: Histograms::new(),
             meters: Meters::new(),
@@ -153,6 +155,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             Interest::Count(key) => {
                 self.counters.init(key);
             }
+            Interest::Gauge(key) => {
+                self.gauges.init(key);
+            }
             Interest::LatencyPercentile(key) => {
                 self.latency_histograms.init(key);
             }
@@ -179,6 +184,9 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             }
             Interest::Count(key) => {
                 self.counters.remove(key);
+            }
+            Interest::Gauge(key) => {
+                self.gauges.remove(key);
             }
             Interest::LatencyPercentile(key) => {
                 self.latency_histograms.remove(key);
@@ -234,6 +242,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             let t1 = self.clocksource.convert(result.stop());
                             let dt = t1 - t0;
                             self.allans.record(result.metric(), dt);
+                            self.gauges.set(result.metric(), result.value());
                             self.counters.increment_by(result.metric(), result.count());
                             self.latency_histograms.increment(
                                 result.metric(),
@@ -287,6 +296,12 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                         self.meters.set_count(
                             key.clone(),
                             self.counters.count(key.clone()),
+                        );
+                    }
+                    Interest::Gauge(ref key) => {
+                        self.meters.set_value(
+                            key.clone(),
+                            self.gauges.value(key.clone()),
                         );
                     }
                     Interest::LatencyPercentile(ref key) => {
@@ -444,7 +459,7 @@ mod benchmark {
     fn heavy_cycle(b: &mut test::Bencher) {
         let mut receiver = Receiver::<String>::new();
         receiver.add_interest(Interest::Count("test".to_owned()));
-        receiver.add_interest(Interest::Percentile("test".to_owned()));
+        receiver.add_interest(Interest::LatencyPercentile("test".to_owned()));
         receiver.add_interest(Interest::AllanDeviation("test".to_owned()));
         b.iter(|| {
             // full stats evaluation
@@ -456,7 +471,7 @@ mod benchmark {
     fn cheap_cycle(b: &mut test::Bencher) {
         let mut receiver = Receiver::<String>::new();
         receiver.add_interest(Interest::Count("test".to_owned()));
-        receiver.add_interest(Interest::Percentile("test".to_owned()));
+        receiver.add_interest(Interest::LatencyPercentile("test".to_owned()));
         receiver.add_interest(Interest::AllanDeviation("test".to_owned()));
         b.iter(|| {
             // no stats evaluation just get clock and compare

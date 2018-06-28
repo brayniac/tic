@@ -7,6 +7,7 @@ pub struct Sample<T> {
     start: u64,
     stop: u64,
     count: u64,
+    value: u64,
     channel: T,
 }
 
@@ -17,6 +18,7 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
             start: start,
             stop: stop,
             count: 1,
+            value: 0,
             channel: channel,
         }
     }
@@ -27,6 +29,18 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
             start: start,
             stop: stop,
             count: count,
+            value: 0,
+            channel: channel,
+        }
+    }
+
+    /// Create a new Sample of a point-in-time value
+    pub fn gauge(value: u64, channel: T) -> Sample<T> {
+        Sample {
+            start: 0,
+            stop: 0,
+            count: 1,
+            value: value,
             channel: channel,
         }
     }
@@ -59,5 +73,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Sample<T> {
     /// return the count of events
     pub fn count(&self) -> u64 {
         self.count
+    }
+
+    /// return the value
+    pub fn value(&self) -> u64 {
+        self.value
     }
 }

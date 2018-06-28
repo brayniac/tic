@@ -13,6 +13,8 @@ pub enum Interest<T> {
     /// Keep a counter for the given metric, this is incremented by each count
     /// associated with a `Sample`
     Count(T),
+    /// Keep a point-in-time value for the given metric, this is last-write-wins
+    Gauge(T),
     /// Calculate latency percentiles for metric based on the delta between
     /// start and stop time for each `Sample`
     LatencyPercentile(T),

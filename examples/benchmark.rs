@@ -15,12 +15,14 @@ use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
     Ok,
+    Total,
 }
 
 impl fmt::Display for Metric {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Metric::Ok => write!(f, "ok"),
+            Metric::Total => write!(f, "total"),
         }
     }
 }
@@ -29,6 +31,7 @@ struct Generator {
     stats: Sender<Metric>,
     t0: Option<u64>,
     clocksource: Clocksource,
+    gauge: u64,
 }
 
 impl Generator {
@@ -37,14 +40,17 @@ impl Generator {
             stats: stats,
             t0: None,
             clocksource: clocksource,
+            gauge: 0,
         }
     }
 
     fn run(&mut self) {
         loop {
+            self.gauge += 1;
             let t1 = self.clocksource.counter();
             if let Some(t0) = self.t0 {
                 let _ = self.stats.send(Sample::new(t0, t1, Metric::Ok));
+                let _ = self.stats.send(Sample::gauge(self.gauge, Metric::Total));
             }
             self.t0 = Some(t1);
         }
@@ -180,6 +186,8 @@ fn main() {
     ));
     receiver.add_interest(Interest::Count(Metric::Ok));
     receiver.add_interest(Interest::LatencyPercentile(Metric::Ok));
+    receiver.add_interest(Interest::Count(Metric::Total));
+    receiver.add_interest(Interest::Gauge(Metric::Total));
 
     let sender = receiver.get_sender();
     let clocksource = receiver.get_clocksource();
@@ -203,11 +211,17 @@ fn main() {
         receiver.run_once();
         let t1 = clocksource.time();
         let m = receiver.clone_meters();
-        let mut c = 0;
+        let mut int = 0;
         if let Some(t) = m.count(&Metric::Ok) {
-            c = *t - total;
-            total = *t;
+            int += *t;
         }
+
+        if let Some(t) = m.count(&Metric::Total) {
+            int += *t;
+        }
+
+        let c = int - total;
+        total = int;
         let r = c as f64 / ((t1 - t0) as f64 / 1_000_000_000.0);
 
         info!("rate: {} samples per second", r);
@@ -225,6 +239,19 @@ fn main() {
                 .unwrap_or(&0)
         );
     }
+
+    let m = receiver.clone_meters();
+    let mut c = 0;
+    if let Some(t) = m.count(&Metric::Ok) {
+        c += *t;
+    }
+
+    if let Some(t) = m.count(&Metric::Total) {
+        c += *t;
+    }
+
+    info!("total metrics pushed: {}", c);
+
     info!("saving files...");
     receiver.save_files();
     info!("saved");
