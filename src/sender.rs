@@ -2,8 +2,8 @@
 
 use common::{ControlMessage, Interest};
 use data::Sample;
-use mio::channel;
-use mio::channel::TrySendError;
+use mio_extras::channel;
+use mio_extras::channel::TrySendError;
 use mpmc::Queue;
 use std::hash::Hash;
 use std::io;

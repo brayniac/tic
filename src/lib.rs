@@ -54,7 +54,6 @@
 //! // configure a receiver
 //! let mut receiver = Receiver::configure()
 //!         .service(true)
-//!         .http_listen("localhost:42024".to_owned())
 //!         .build();
 //!
 //! // register some interests
@@ -93,6 +92,7 @@ extern crate histogram;
 #[macro_use]
 extern crate log;
 extern crate mio;
+extern crate mio_extras;
 extern crate mpmc;
 extern crate tiny_http;
 extern crate waterfall;
@@ -102,10 +102,14 @@ mod config;
 mod data;
 mod receiver;
 mod sender;
+mod controller;
+mod http;
 
 pub use clocksource::Clocksource;
 pub use common::{Interest, Percentile, SECOND};
 pub use config::Config;
+pub use controller::Controller;
 pub use data::{Meters, Sample};
+pub use http::HttpReporter;
 pub use receiver::Receiver;
 pub use sender::Sender;

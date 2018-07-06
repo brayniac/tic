@@ -3,16 +3,16 @@
 use clocksource::Clocksource;
 use common::{self, ControlMessage, Interest, Percentile};
 use config::Config;
+use controller::Controller;
 use data::{Allans, Counters, Gauges, Heatmaps, Histograms, Meters, Sample};
-use mio::{self, Events, Poll, PollOpt, Ready, channel};
+use mio::{self, Events, Poll, PollOpt, Ready};
+use mio_extras::channel;
 use mpmc::Queue;
 use sender::Sender;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::Hash;
-use std::net::SocketAddr;
 use std::sync::Arc;
-use tiny_http::{Request, Response, Server};
 
 // define token numbers for data and control queues
 #[derive(Clone, Copy)]
@@ -44,7 +44,6 @@ pub struct Receiver<T> {
     percentiles: Vec<Percentile>,
     latency_heatmaps: Heatmaps<T>,
     value_heatmaps: Heatmaps<T>,
-    server: Option<Server>,
     clocksource: Clocksource,
     poll: Poll,
 }
@@ -72,7 +71,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         }
 
         let clocksource = Clocksource::default();
-        let server = start_listener(&config.http_listen);
         let slices = config.duration * config.windows;
 
         // calculate counter values for start, window, and end times
@@ -120,7 +118,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
             percentiles: common::default_percentiles(),
             latency_heatmaps: Heatmaps::new(slices, start_time),
             value_heatmaps: Heatmaps::new(slices, start_time),
-            server: server,
             clocksource: clocksource,
             poll: poll,
         }
@@ -144,6 +141,11 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     /// returns a clone of the `Clocksource`
     pub fn get_clocksource(&self) -> Clocksource {
         self.clocksource.clone()
+    }
+
+    /// creates a `Controller` attached to this `Receiver`
+    pub fn get_controller(&self) -> Controller<T> {
+        Controller::new(self.control_tx.clone())
     }
 
     /// register a stat for export
@@ -217,15 +219,8 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
         trace!("run once");
 
         let window_time = self.window_time;
-        let mut http_time = self.clocksource.counter() +
-            (0.1 * self.clocksource.frequency()) as u64;
 
         loop {
-            if self.clocksource.counter() > http_time {
-                self.try_handle_http(&self.server);
-                http_time += (0.1 * self.clocksource.frequency()) as u64;
-            }
-
             if self.check_elapsed(window_time) {
                 return;
             }
@@ -275,6 +270,10 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
                             }
                             ControlMessage::RemoveInterest(interest) => {
                                 self.remove_interest(&interest);
+                            }
+                            ControlMessage::SnapshotMeters(tx) => {
+                                let meters = self.clone_meters();
+                                tx.send(meters).unwrap();
                             }
                         }
                     }
@@ -396,57 +395,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Receiver<T> {
     pub fn clone_meters(&self) -> Meters<T> {
         self.meters.clone()
     }
-
-    // try to handle a http request
-    fn try_handle_http(&self, server: &Option<Server>) {
-        if let Some(ref s) = *server {
-            if let Ok(Some(request)) = s.try_recv() {
-                trace!("handle http request");
-                self.handle_http(request);
-            }
-        }
-    }
-
-    // actually handle the http request
-    fn handle_http(&self, request: Request) {
-        let mut output = "".to_owned();
-
-        match request.url() {
-            "/vars" | "/metrics" => {
-                for (stat, value) in &self.meters.data {
-                    output = output + &format!("{} {}\n", stat, value);
-                }
-                for (stat, value) in &self.meters.data_float {
-                    output = output + &format!("{} {}\n", stat, value);
-                }
-            }
-            _ => {
-                output += "{";
-                for (stat, value) in &self.meters.data {
-                    output = output + &format!("\"{}\":{},", stat, value);
-                }
-                for (stat, value) in &self.meters.data_float {
-                    output = output + &format!("\"{}\":{},", stat, value);
-                }
-                if output.len() > 1 {
-                    output.pop();
-                }
-                output += "}";
-            }
-        }
-
-        let response = Response::from_string(output);
-        let _ = request.respond(response);
-    }
-}
-
-// start the HTTP listener for tic
-fn start_listener(listen: &Option<SocketAddr>) -> Option<Server> {
-    if let Some(ref socket) = *listen {
-        debug!("starting HTTP listener");
-        return Some(Server::http(socket).unwrap());
-    }
-    None
 }
 
 #[cfg(feature = "benchmark")]

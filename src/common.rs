@@ -1,3 +1,6 @@
+use data::Meters;
+use std::sync::mpsc::SyncSender;
+
 /// Duration of 1 second in nanoseconds
 pub const SECOND: u64 = 1_000_000_000;
 /// Duration of 1 minute in nanoseconds
@@ -35,10 +38,11 @@ pub enum Interest<T> {
     ValueWaterfall(T, String),
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone)]
 pub enum ControlMessage<T> {
     AddInterest(Interest<T>),
     RemoveInterest(Interest<T>),
+    SnapshotMeters(SyncSender<Meters<T>>),
 }
 
 #[derive(Clone)]

@@ -10,7 +10,7 @@ use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 use std::env;
 use std::fmt;
 use std::thread;
-use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
+use tic::{Clocksource, HttpReporter, Interest, Percentile, Receiver, Sample, Sender};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Metric {
@@ -173,8 +173,10 @@ fn main() {
         .duration(duration)
         .capacity(capacity)
         .batch_size(batch)
-        .http_listen("localhost:42024")
         .build();
+
+    let mut http = HttpReporter::new(&receiver, "localhost:42024");
+    thread::spawn(move || http.run());
 
     receiver.add_interest(Interest::LatencyWaterfall(
         Metric::Ok,

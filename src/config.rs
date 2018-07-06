@@ -8,7 +8,6 @@ use receiver::Receiver;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
 /// a configuration struct for customizing `Receiver`
@@ -37,8 +36,6 @@ pub struct Config<T> {
     pub service_mode: bool,
     /// set an optional delay between calls to poll
     pub poll_delay: Option<Duration>,
-    /// enable the HTTP stats export on the given address
-    pub http_listen: Option<SocketAddr>,
     /// save a latency heatmap trace to the given file
     pub trace_file: Option<String>,
     /// save a waterfal png of the latency heatmap to the given file
@@ -63,7 +60,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Default for Config<T> {
             max_tau: 300,
             service_mode: false,
             poll_delay: None,
-            http_listen: None,
             trace_file: None,
             waterfall_file: None,
             heatmap_config: heatmap_config,
@@ -161,24 +157,6 @@ impl<T: Hash + Eq + Send + Display + Clone> Config<T> {
     /// ```
     pub fn batch_size(mut self, batch_size: usize) -> Self {
         self.batch_size = batch_size;
-        self
-    }
-
-    /// set the http lister address
-    ///
-    /// # Example
-    /// ```
-    /// # use tic::Receiver;
-    /// let mut c = Receiver::<usize>::configure();
-    /// c.http_listen("0.0.0.0:42024"); // listen on port 42024 on all interfaces
-    /// ```
-    pub fn http_listen<U: ToSocketAddrs>(mut self, address: U) -> Self {
-        let address = address
-            .to_socket_addrs()
-            .expect("SocketAddr lookup failed")
-            .next()
-            .expect("SocketAddr resolved to empty set");
-        self.http_listen = Some(address);
         self
     }
 

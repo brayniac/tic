@@ -10,7 +10,7 @@ extern crate time;
 use getopts::Options;
 use log::{LogLevel, LogLevelFilter, LogMetadata, LogRecord};
 use std::{env, fmt, thread};
-use tic::{Clocksource, Interest, Percentile, Receiver, Sample, Sender};
+use tic::{Clocksource, HttpReporter, Interest, Percentile, Receiver, Sample, Sender};
 use tic::SECOND;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -144,8 +144,10 @@ fn main() {
         .capacity(capacity)
         .batch_size(batch)
         .service(true)
-        .http_listen("localhost:42024")
         .build();
+
+    let mut http = HttpReporter::new(&receiver, "localhost:42024");
+    thread::spawn(move || http.run());
 
     receiver.add_interest(Interest::LatencyWaterfall(
         Metric::Ok,
